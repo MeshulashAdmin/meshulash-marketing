@@ -212,6 +212,20 @@ class Meshulash_Settings {
     // Fields that allow raw HTML/JS (only for admins)
     private static $raw_fields = [ 'head_scripts_global', 'footer_scripts_global' ];
 
+    // Sensitive fields that should be masked in the admin UI
+    const SECRET_MASK = '••••••••••••••••';
+    private static $secret_fields = [
+        'fb_access_token',
+        'ga4_api_secret',
+        'tt_access_token',
+        'mumble_api_key',
+        'github_token',
+    ];
+
+    public static function is_secret_field( $key ) {
+        return in_array( $key, self::$secret_fields, true );
+    }
+
     public static function save( $data ) {
         $clean    = [];
         $defaults = self::defaults();
@@ -231,6 +245,15 @@ class Meshulash_Settings {
                 $clean[ $key ] = isset( $data[ $key ] ) ? intval( $data[ $key ] ) : ( $existing[ $key ] ?? $default_value );
             } elseif ( in_array( $key, self::$raw_fields, true ) ) {
                 $clean[ $key ] = isset( $data[ $key ] ) ? wp_unslash( $data[ $key ] ) : ( $existing[ $key ] ?? $default_value );
+            } elseif ( self::is_secret_field( $key ) ) {
+                // Secret fields: mask = keep existing, empty = clear, new value = save
+                if ( ! isset( $data[ $key ] ) || $data[ $key ] === self::SECRET_MASK ) {
+                    $clean[ $key ] = $existing[ $key ] ?? $default_value;
+                } elseif ( $data[ $key ] === '' ) {
+                    $clean[ $key ] = '';
+                } else {
+                    $clean[ $key ] = sanitize_text_field( $data[ $key ] );
+                }
             } else {
                 $clean[ $key ] = isset( $data[ $key ] ) ? sanitize_text_field( $data[ $key ] ) : ( $existing[ $key ] ?? $default_value );
             }

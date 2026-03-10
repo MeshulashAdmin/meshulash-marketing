@@ -1060,6 +1060,12 @@ class Meshulash_Admin {
     //  Field Renderers
     // ──────────────────────────────────────────────
     private function render_field( $label, $key, $value, $placeholder = '', $type = 'text', $description = '' ) {
+        // Mask secret fields so real values never appear in HTML source
+        $display_value = $value;
+        $is_secret = ( $type === 'password' && Meshulash_Settings::is_secret_field( $key ) );
+        if ( $is_secret && ! empty( $value ) ) {
+            $display_value = Meshulash_Settings::SECRET_MASK;
+        }
         ?>
         <tr>
             <th scope="row"><label for="meshulash_<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $label ); ?></label></th>
@@ -1067,11 +1073,18 @@ class Meshulash_Admin {
                 <input type="<?php echo esc_attr( $type ); ?>"
                        id="meshulash_<?php echo esc_attr( $key ); ?>"
                        name="meshulash[<?php echo esc_attr( $key ); ?>]"
-                       value="<?php echo esc_attr( $value ); ?>"
+                       value="<?php echo esc_attr( $display_value ); ?>"
                        placeholder="<?php echo esc_attr( $placeholder ); ?>"
-                       class="regular-text">
+                       class="regular-text"
+                       <?php if ( $is_secret ) echo 'autocomplete="off"'; ?>>
+                <?php if ( $is_secret && ! empty( $value ) ) : ?>
+                    <span class="dashicons dashicons-yes-alt" style="color:#46b450;vertical-align:middle;" title="Saved"></span>
+                <?php endif; ?>
                 <?php if ( $description ) : ?>
                     <p class="description"><?php echo wp_kses_post( $description ); ?></p>
+                <?php endif; ?>
+                <?php if ( $is_secret ) : ?>
+                    <p class="description"><em>Clear the field and save to remove the stored value.</em></p>
                 <?php endif; ?>
             </td>
         </tr>
