@@ -41,6 +41,9 @@ class Meshulash_Server_Side {
 
         if ( ! $pixel_id || ! $access_token ) return;
 
+        // Safety: skip if token is the masked placeholder
+        if ( $access_token === Meshulash_Settings::SECRET_MASK ) return;
+
         $fb_event_name = $event_name; // Already in FB format from caller
 
         // Build user data
@@ -63,17 +66,30 @@ class Meshulash_Server_Side {
             $payload['test_event_code'] = $test_code;
         }
 
-        $url = 'https://graph.facebook.com/v21.0/' . $pixel_id . '/events?access_token=' . $access_token;
+        $url = 'https://graph.facebook.com/v21.0/' . $pixel_id . '/events';
 
-        wp_remote_post( $url, [
-            'timeout'  => 5,
-            'blocking' => false,
+        // Include access_token in payload body (more reliable than URL param)
+        $payload['access_token'] = $access_token;
+
+        $is_debug = Meshulash_Settings::is_debug();
+
+        $response = wp_remote_post( $url, [
+            'timeout'  => $is_debug ? 15 : 5,
+            'blocking' => $is_debug,  // Blocking in debug so we can log the response
             'headers'  => [ 'Content-Type' => 'application/json' ],
             'body'     => wp_json_encode( $payload ),
         ]);
 
-        if ( Meshulash_Settings::is_debug() ) {
-            error_log( 'Meshulash CAPI [' . $fb_event_name . '] Event ID: ' . $event_id );
+        if ( $is_debug ) {
+            $log = 'Meshulash CAPI [' . $fb_event_name . '] Pixel: ' . $pixel_id . ' Event ID: ' . $event_id;
+            if ( is_wp_error( $response ) ) {
+                $log .= ' | WP ERROR: ' . $response->get_error_message();
+            } else {
+                $code = wp_remote_retrieve_response_code( $response );
+                $body = wp_remote_retrieve_body( $response );
+                $log .= ' | HTTP ' . $code . ': ' . substr( $body, 0, 500 );
+            }
+            error_log( $log );
         }
     }
 
