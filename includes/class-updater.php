@@ -32,6 +32,14 @@ final class Meshulash_Updater {
     }
 
     /**
+     * Force a fresh check (clears cache first).
+     */
+    public function get_remote_info_fresh() {
+        delete_transient( $this->cache_key );
+        return $this->get_remote_info();
+    }
+
+    /**
      * Fetch latest release info from GitHub (cached).
      */
     private function get_remote_info() {

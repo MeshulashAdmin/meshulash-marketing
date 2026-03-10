@@ -7,6 +7,7 @@ class Meshulash_Admin {
         add_action( 'admin_menu', [ $this, 'add_menu_page' ] );
         add_action( 'admin_init', [ $this, 'handle_save' ] );
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_assets' ] );
+        add_action( 'wp_ajax_meshulash_check_update', [ $this, 'ajax_check_update' ] );
     }
 
     public function add_menu_page() {
@@ -1041,8 +1042,87 @@ class Meshulash_Admin {
             <code>console.log('Meshulash [event_name]', data)</code>. Disable in production.
         </div>
 
-        <!-- Auto-updates are handled automatically via GitHub Releases -->
+        <h2>Plugin Updates</h2>
+        <table class="form-table">
+            <tr>
+                <th scope="row">Current Version</th>
+                <td><strong><?php echo esc_html( MESHULASH_VERSION ); ?></strong></td>
+            </tr>
+            <tr>
+                <th scope="row">Latest Version</th>
+                <td>
+                    <span id="meshulash-latest-version">—</span>
+                    <button type="button" class="button" id="meshulash-check-update" style="margin-left:10px;">Check for Updates</button>
+                    <span id="meshulash-update-spinner" class="spinner" style="float:none;"></span>
+                    <span id="meshulash-update-msg" style="margin-left:10px;"></span>
+                </td>
+            </tr>
+        </table>
+        <script>
+        (function(){
+            var btn = document.getElementById('meshulash-check-update');
+            var spinner = document.getElementById('meshulash-update-spinner');
+            var msg = document.getElementById('meshulash-update-msg');
+            var latest = document.getElementById('meshulash-latest-version');
+            btn.addEventListener('click', function(){
+                btn.disabled = true;
+                spinner.classList.add('is-active');
+                msg.textContent = '';
+                var data = new FormData();
+                data.append('action', 'meshulash_check_update');
+                data.append('_wpnonce', '<?php echo esc_js( wp_create_nonce( 'meshulash_check_update' ) ); ?>');
+                fetch(ajaxurl, {method:'POST', body:data})
+                    .then(function(r){return r.json();})
+                    .then(function(res){
+                        spinner.classList.remove('is-active');
+                        btn.disabled = false;
+                        if(res.success){
+                            latest.textContent = res.data.latest;
+                            if(res.data.has_update){
+                                msg.innerHTML = '<span style="color:#d63638;font-weight:bold;">Update available!</span> <a href="'+res.data.update_url+'" class="button button-primary" style="margin-left:8px;">Update Now</a>';
+                            } else {
+                                msg.innerHTML = '<span style="color:#00a32a;font-weight:bold;">You are up to date.</span>';
+                            }
+                        } else {
+                            msg.innerHTML = '<span style="color:#d63638;">'+res.data+'</span>';
+                        }
+                    })
+                    .catch(function(){
+                        spinner.classList.remove('is-active');
+                        btn.disabled = false;
+                        msg.textContent = 'Request failed.';
+                    });
+            });
+        })();
+        </script>
         <?php
+    }
+
+    /**
+     * AJAX: check for plugin updates (clears cache, fetches fresh from GitHub).
+     */
+    public function ajax_check_update() {
+        check_ajax_referer( 'meshulash_check_update', '_wpnonce' );
+
+        if ( ! current_user_can( 'update_plugins' ) ) {
+            wp_send_json_error( 'Permission denied.' );
+        }
+
+        $updater = new Meshulash_Updater();
+        $info    = $updater->get_remote_info_fresh();
+
+        if ( ! $info || empty( $info['version'] ) || $info['version'] === '0.0.0' ) {
+            wp_send_json_error( 'Could not reach GitHub. Try again later.' );
+        }
+
+        $has_update = version_compare( $info['version'], MESHULASH_VERSION, '>' );
+
+        wp_send_json_success([
+            'latest'     => $info['version'],
+            'current'    => MESHULASH_VERSION,
+            'has_update' => $has_update,
+            'update_url' => $has_update ? admin_url( 'update-core.php' ) : '',
+        ]);
     }
 
     // ──────────────────────────────────────────────
