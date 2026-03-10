@@ -591,7 +591,7 @@ class Meshulash_Ecommerce {
         if ( ! Meshulash_Settings::get( 'event_remove_from_cart' ) ) return;
 
         $removed = $cart->removed_cart_contents[ $cart_item_key ] ?? null;
-        if ( ! $removed ) return;
+        if ( ! $removed || empty( $removed['data'] ) ) return;
 
         $product = wc_get_product( $removed['data']->get_id() );
         if ( ! $product ) return;

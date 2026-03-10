@@ -3,7 +3,7 @@
  * Plugin Name: Meshulash Marketing — WooCommerce Tracking & Conversions
  * Plugin URI:  https://meshulashdigital.com
  * Description: Complete ecommerce tracking suite: GTM dataLayer, GA4, Facebook Pixel, Google Ads conversions — client-side and server-side. Built by Meshulash Digital.
- * Version:     1.2.0
+ * Version:     1.2.1
  * Author:      Meshulash Digital
  * Author URI:  https://meshulashdigital.com
  * License:     GPL-2.0-or-later
@@ -29,7 +29,7 @@ if ( defined( 'MESHULASH_DISABLE' ) && MESHULASH_DISABLE ) {
     return;
 }
 
-define( 'MESHULASH_VERSION', '1.2.0' );
+define( 'MESHULASH_VERSION', '1.2.1' );
 define( 'MESHULASH_PLUGIN_FILE', __FILE__ );
 define( 'MESHULASH_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'MESHULASH_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

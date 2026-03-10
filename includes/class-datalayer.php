@@ -194,27 +194,35 @@ class Meshulash_DataLayer {
     public static function get_user_data_hashed( $order = null ) {
         $data = [];
 
+        // Always include client IP, user agent, and FB cookies (required by CAPI even for anonymous visitors)
+        $data['client_ip_address'] = self::get_client_ip();
+        $data['client_user_agent'] = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( $_SERVER['HTTP_USER_AGENT'] ) : '';
+
+        if ( isset( $_COOKIE['_fbp'] ) ) $data['fbp'] = sanitize_text_field( $_COOKIE['_fbp'] );
+        if ( isset( $_COOKIE['_fbc'] ) ) $data['fbc'] = sanitize_text_field( $_COOKIE['_fbc'] );
+
+        // Add PII when available (order or logged-in user)
+        $email = $phone = $fname = $lname = $city = $state = $zip = $country = '';
+
         if ( $order instanceof WC_Order ) {
-            $email = $order->get_billing_email();
-            $phone = $order->get_billing_phone();
-            $fname = $order->get_billing_first_name();
-            $lname = $order->get_billing_last_name();
-            $city  = $order->get_billing_city();
-            $state = $order->get_billing_state();
-            $zip   = $order->get_billing_postcode();
+            $email   = $order->get_billing_email();
+            $phone   = $order->get_billing_phone();
+            $fname   = $order->get_billing_first_name();
+            $lname   = $order->get_billing_last_name();
+            $city    = $order->get_billing_city();
+            $state   = $order->get_billing_state();
+            $zip     = $order->get_billing_postcode();
             $country = $order->get_billing_country();
         } elseif ( is_user_logged_in() ) {
-            $user  = wp_get_current_user();
-            $email = $user->user_email;
-            $phone = get_user_meta( $user->ID, 'billing_phone', true );
-            $fname = $user->first_name;
-            $lname = $user->last_name;
-            $city  = get_user_meta( $user->ID, 'billing_city', true );
-            $state = get_user_meta( $user->ID, 'billing_state', true );
-            $zip   = get_user_meta( $user->ID, 'billing_postcode', true );
+            $user    = wp_get_current_user();
+            $email   = $user->user_email;
+            $phone   = get_user_meta( $user->ID, 'billing_phone', true );
+            $fname   = $user->first_name;
+            $lname   = $user->last_name;
+            $city    = get_user_meta( $user->ID, 'billing_city', true );
+            $state   = get_user_meta( $user->ID, 'billing_state', true );
+            $zip     = get_user_meta( $user->ID, 'billing_postcode', true );
             $country = get_user_meta( $user->ID, 'billing_country', true );
-        } else {
-            return $data;
         }
 
         if ( $email )   $data['em'] = hash( 'sha256', strtolower( trim( $email ) ) );
@@ -225,14 +233,6 @@ class Meshulash_DataLayer {
         if ( $state )   $data['st'] = hash( 'sha256', strtolower( trim( $state ) ) );
         if ( $zip )     $data['zp'] = hash( 'sha256', strtolower( trim( $zip ) ) );
         if ( $country ) $data['country'] = hash( 'sha256', strtolower( trim( $country ) ) );
-
-        // Client identifiers
-        if ( isset( $_COOKIE['_fbp'] ) ) $data['fbp'] = sanitize_text_field( $_COOKIE['_fbp'] );
-        if ( isset( $_COOKIE['_fbc'] ) ) $data['fbc'] = sanitize_text_field( $_COOKIE['_fbc'] );
-
-        // Client IP and user agent
-        $data['client_ip_address'] = self::get_client_ip();
-        $data['client_user_agent'] = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( $_SERVER['HTTP_USER_AGENT'] ) : '';
 
         return $data;
     }
