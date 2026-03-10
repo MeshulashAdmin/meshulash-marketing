@@ -1,0 +1,157 @@
+/* Meshulash Marketing — Admin Styles */
+
+.meshulash-wrap {
+    max-width: 1200px;
+}
+
+.meshulash-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0 10px;
+}
+
+.meshulash-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+    color: #1d2327;
+}
+
+.meshulash-version {
+    background: #2271b1;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.meshulash-tabs {
+    margin-bottom: 0 !important;
+    border-bottom: 1px solid #c3c4c7;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.meshulash-tabs .nav-tab {
+    font-size: 13px;
+    padding: 6px 10px;
+    white-space: nowrap;
+}
+
+.meshulash-tabs .nav-tab-active {
+    background: #fff;
+    border-bottom-color: #fff;
+    color: #1d2327;
+    font-weight: 600;
+}
+
+.meshulash-panel {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-top: none;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+}
+
+.meshulash-panel h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    padding: 0;
+    color: #1d2327;
+}
+
+.meshulash-panel h2 + .description {
+    margin-bottom: 16px;
+    color: #646970;
+}
+
+.meshulash-panel hr {
+    margin: 28px 0;
+    border: none;
+    border-top: 1px solid #e0e0e0;
+}
+
+.meshulash-panel .form-table th {
+    width: 200px;
+    padding: 12px 10px 12px 0;
+    font-weight: 500;
+}
+
+.meshulash-panel .form-table td {
+    padding: 10px;
+}
+
+.meshulash-panel .form-table input[type="text"],
+.meshulash-panel .form-table input[type="number"],
+.meshulash-panel .form-table input[type="password"] {
+    width: 100%;
+    max-width: 400px;
+}
+
+/* Toggle Switch */
+.meshulash-toggle {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.meshulash-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.meshulash-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background-color: #c3c4c7;
+    transition: 0.2s;
+    border-radius: 24px;
+}
+
+.meshulash-toggle-slider::before {
+    content: "";
+    position: absolute;
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.2s;
+    border-radius: 50%;
+}
+
+.meshulash-toggle input:checked + .meshulash-toggle-slider {
+    background-color: #2271b1;
+}
+
+.meshulash-toggle input:checked + .meshulash-toggle-slider::before {
+    transform: translateX(20px);
+}
+
+/* Info Box */
+.meshulash-info-box {
+    background: #f0f6fc;
+    border: 1px solid #c3c4c7;
+    border-left: 4px solid #2271b1;
+    padding: 12px 16px;
+    margin: 16px 0 0;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.meshulash-info-box code {
+    background: #e4ecf4;
+    padding: 1px 5px;
+    font-size: 12px;
+}
+
+/* Submit */
+.meshulash-form .submit {
+    margin-top: 0;
+}
