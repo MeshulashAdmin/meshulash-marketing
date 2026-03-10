@@ -425,6 +425,11 @@ function dispatch(obj){
                 fbData.num_items=ecom.items.length;
             }
             fbData.content_type='product';
+            if(ecom.items&&ecom.items.length){
+                fbData.content_name=ecom.items[0].item_name||'';
+                if(!fbData.content_name&&ecom.items[0].name)fbData.content_name=ecom.items[0].name;
+                if(ecom.items[0].item_category)fbData.content_category=ecom.items[0].item_category;
+            }
             if(obj.search_term)fbData.search_string=obj.search_term;
 
             var isStandard=fbStandard.indexOf(fbEvt)!==-1;
