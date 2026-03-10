@@ -142,10 +142,6 @@ class Meshulash_Settings {
             'mumble_lead_label'         => '',
             'mumble_default_team'       => '',
 
-            // GitHub Auto-Updater
-            'github_repo'               => '',  // e.g. "MeshulashDigital/meshulash-marketing"
-            'github_token'              => '',  // Personal Access Token (for private repos)
-
             // Product Catalog Feed
             'catalog_enabled'           => true,
 
@@ -219,7 +215,6 @@ class Meshulash_Settings {
         'ga4_api_secret',
         'tt_access_token',
         'mumble_api_key',
-        'github_token',
     ];
 
     public static function is_secret_field( $key ) {

@@ -7,11 +7,10 @@
  * in wp-admin and can one-click update.
  *
  * Workflow:
- * 1. Push plugin code to a GitHub repo.
- * 2. Set the repo path in General settings (e.g. "MeshulashDigital/meshulash-marketing").
- * 3. When releasing: create a GitHub Release, tag = version (e.g. "1.2.0"),
+ * 1. Push plugin code to the GitHub repo (MeshulashAdmin/meshulash-marketing).
+ * 2. Create a GitHub Release, tag = version (e.g. "1.2.0"),
  *    and attach the built meshulash-marketing.zip as a release asset.
- * 4. All client sites will see the update within 12 hours (or force-check via Dashboard → Updates).
+ * 3. All client sites will see the update within 12 hours (or force-check via Dashboard → Updates).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -21,25 +20,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Meshulash_Updater {
 
     private $plugin_slug = 'meshulash-marketing/meshulash-marketing.php';
-    private $github_repo; // e.g. "MeshulashDigital/meshulash-marketing"
-    private $github_token;
-    private $cache_key = 'meshulash_github_update';
-    private $cache_ttl = 43200; // 12 hours
+    private $github_repo = 'MeshulashAdmin/meshulash-marketing';
+    private $cache_key   = 'meshulash_github_update';
+    private $cache_ttl   = 43200; // 12 hours
 
     public function __construct() {
-        $this->github_repo  = Meshulash_Settings::get( 'github_repo' );
-        $this->github_token = Meshulash_Settings::get( 'github_token' );
-
-        // Don't register hooks if no repo is configured
-        if ( empty( $this->github_repo ) ) {
-            return;
-        }
-
         add_filter( 'pre_set_site_transient_update_plugins', [ $this, 'check_for_update' ] );
         add_filter( 'plugins_api', [ $this, 'plugin_info' ], 10, 3 );
         add_action( 'upgrader_process_complete', [ $this, 'clear_cache' ], 10, 2 );
-
-        // Allow GitHub ZIPs (which may have a different folder name) to be renamed correctly
         add_filter( 'upgrader_post_install', [ $this, 'fix_directory_name' ], 10, 3 );
     }
 
@@ -62,10 +50,6 @@ final class Meshulash_Updater {
             ],
         ];
 
-        if ( ! empty( $this->github_token ) ) {
-            $args['headers']['Authorization'] = 'token ' . $this->github_token;
-        }
-
         $response = wp_remote_get( $url, $args );
 
         if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) !== 200 ) {
@@ -87,13 +71,7 @@ final class Meshulash_Updater {
         if ( ! empty( $release['assets'] ) && is_array( $release['assets'] ) ) {
             foreach ( $release['assets'] as $asset ) {
                 if ( substr( $asset['name'], -4 ) === '.zip' ) {
-                    // Use the browser_download_url for public repos,
-                    // or the API URL with token for private repos
-                    if ( ! empty( $this->github_token ) ) {
-                        $download_url = $asset['url']; // API URL, needs Accept header
-                    } else {
-                        $download_url = $asset['browser_download_url'];
-                    }
+                    $download_url = $asset['browser_download_url'];
                     break;
                 }
             }
@@ -213,17 +191,6 @@ final class Meshulash_Updater {
         }
 
         return $response;
-    }
-
-    /**
-     * For private repos: filter the download request to add the auth token.
-     */
-    public function __get_download_args( $args ) {
-        if ( ! empty( $this->github_token ) ) {
-            $args['headers']['Authorization'] = 'token ' . $this->github_token;
-            $args['headers']['Accept'] = 'application/octet-stream';
-        }
-        return $args;
     }
 
     /**

@@ -1041,18 +1041,7 @@ class Meshulash_Admin {
             <code>console.log('Meshulash [event_name]', data)</code>. Disable in production.
         </div>
 
-        <h2>Auto-Updater (GitHub)</h2>
-        <table class="form-table">
-            <?php
-            $this->render_field( 'GitHub Repository', 'github_repo', $s['github_repo'], 'MeshulashDigital/meshulash-marketing', 'text', 'Format: <code>owner/repo-name</code>. Leave empty to disable auto-updates.' );
-            $this->render_field( 'GitHub Token', 'github_token', $s['github_token'], '', 'password', 'Required only for <strong>private</strong> repos. Generate at GitHub → Settings → Developer settings → Personal access tokens. Needs <code>repo</code> scope.' );
-            ?>
-        </table>
-        <div class="meshulash-info-box">
-            <strong>How it works:</strong> When you create a new Release on GitHub and attach the plugin ZIP,
-            all sites with this plugin will see an update notification in wp-admin within 12 hours.
-            Admins can then one-click update like any WordPress plugin.
-        </div>
+        <!-- Auto-updates are handled automatically via GitHub Releases -->
         <?php
     }
 
