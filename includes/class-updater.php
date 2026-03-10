@@ -166,8 +166,8 @@ final class Meshulash_Updater {
         $info->name          = 'Meshulash Marketing — WooCommerce Tracking & Conversions';
         $info->slug          = 'meshulash-marketing';
         $info->version       = $remote['version'];
-        $info->author        = '<a href="https://meshulash.digital">Meshulash Digital</a>';
-        $info->homepage      = 'https://meshulash.digital';
+        $info->author        = '<a href="https://meshulashdigital.com">Meshulash Digital</a>';
+        $info->homepage      = 'https://meshulashdigital.com';
         $info->download_link = $remote['download_url'];
         $info->requires      = '5.8';
         $info->requires_php  = '7.4';

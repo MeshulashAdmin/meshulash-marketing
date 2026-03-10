@@ -2,7 +2,7 @@
 
 A complete ecommerce tracking suite for WooCommerce. Client-side pixels, server-side APIs, marketing attribution, customer intelligence, and WhatsApp automation — all from one plugin, zero coding required.
 
-Built by [Meshulash Digital](https://meshulash.digital).
+Built by [Meshulash Digital](https://meshulashdigital.com).
 
 ---
 
@@ -423,4 +423,4 @@ GPL-2.0-or-later
 
 ## Support
 
-For support, feature requests, or bug reports, contact [Meshulash Digital](https://meshulash.digital).
+For support, feature requests, or bug reports, contact [Meshulash Digital](https://meshulashdigital.com).
