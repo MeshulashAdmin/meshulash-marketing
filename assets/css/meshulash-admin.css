@@ -1,7 +1,7 @@
 /* Meshulash Marketing — Admin Styles */
 
 .meshulash-wrap {
-    max-width: 1200px;
+    max-width: 1600px;
 }
 
 .meshulash-header {
@@ -36,8 +36,9 @@
 
 .meshulash-tabs .nav-tab {
     font-size: 13px;
-    padding: 6px 10px;
+    padding: 5px 8px;
     white-space: nowrap;
+    line-height: 1.4;
 }
 
 .meshulash-tabs .nav-tab-active {

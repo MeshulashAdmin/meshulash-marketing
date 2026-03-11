@@ -55,10 +55,7 @@ class Meshulash_Ecommerce {
         add_action( 'woocommerce_order_status_failed', [ $this, 'event_order_failed' ] );
         add_action( 'woocommerce_order_status_on-hold', [ $this, 'event_order_on_hold' ] );
 
-        // Lead / Form submissions — Elementor + Contact Form 7 + WPForms
-        add_action( 'elementor_pro/forms/new_record', [ $this, 'event_lead_elementor' ], 10, 2 );
-        add_action( 'wpcf7_mail_sent', [ $this, 'event_lead_cf7' ] );
-        add_action( 'wpforms_process_complete', [ $this, 'event_lead_wpforms' ], 10, 4 );
+        // Lead / Form submissions — moved to class-leads.php (works without WooCommerce)
 
         // Product data cache: embed product data as inline JS for fast client-side events
         add_action( 'wp_footer', [ $this, 'output_product_data_cache' ], 5 );
@@ -687,69 +684,6 @@ class Meshulash_Ecommerce {
             'value'    => (float) $order->get_total(),
             'currency' => $order->get_currency(),
         ], $event_id, $order );
-    }
-
-    // ══════════════════════════════════════════════
-    //  LEAD / FORM SUBMISSIONS
-    // ══════════════════════════════════════════════
-    public function event_lead_elementor( $record, $handler ) {
-        if ( ! Meshulash_Settings::get( 'event_lead' ) ) return;
-
-        $form_name = $record->get_form_settings( 'form_name' );
-        $event_id  = Meshulash_DataLayer::generate_event_id( 'lead' );
-
-        $this->store_session_event([
-            'event'     => 'generate_lead',
-            'event_id'  => $event_id,
-            'form_name' => sanitize_text_field( $form_name ),
-        ]);
-
-        do_action( 'meshulash_server_event', 'Lead', [
-            'content_name'     => sanitize_text_field( $form_name ),
-            'content_category' => 'form_submission',
-            'value'            => 0,
-            'currency'         => get_woocommerce_currency(),
-        ], $event_id );
-    }
-
-    public function event_lead_cf7( $contact_form ) {
-        if ( ! Meshulash_Settings::get( 'event_lead' ) ) return;
-
-        $event_id  = Meshulash_DataLayer::generate_event_id( 'lead' );
-        $form_name = $contact_form->title();
-
-        $this->store_session_event([
-            'event'     => 'generate_lead',
-            'event_id'  => $event_id,
-            'form_name' => sanitize_text_field( $form_name ),
-        ]);
-
-        do_action( 'meshulash_server_event', 'Lead', [
-            'content_name'     => sanitize_text_field( $form_name ),
-            'content_category' => 'form_submission',
-            'value'            => 0,
-            'currency'         => get_woocommerce_currency(),
-        ], $event_id );
-    }
-
-    public function event_lead_wpforms( $fields, $entry, $form_data, $entry_id ) {
-        if ( ! Meshulash_Settings::get( 'event_lead' ) ) return;
-
-        $event_id  = Meshulash_DataLayer::generate_event_id( 'lead' );
-        $form_name = $form_data['settings']['form_title'] ?? 'WPForm';
-
-        $this->store_session_event([
-            'event'     => 'generate_lead',
-            'event_id'  => $event_id,
-            'form_name' => sanitize_text_field( $form_name ),
-        ]);
-
-        do_action( 'meshulash_server_event', 'Lead', [
-            'content_name'     => sanitize_text_field( $form_name ),
-            'content_category' => 'form_submission',
-            'value'            => 0,
-            'currency'         => get_woocommerce_currency(),
-        ], $event_id );
     }
 
     // ══════════════════════════════════════════════

@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: Meshulash Marketing — WooCommerce Tracking & Conversions
+ * Plugin Name: Meshulash Marketing — Tracking & Conversions
  * Plugin URI:  https://meshulashdigital.com
- * Description: Complete ecommerce tracking suite: GTM dataLayer, GA4, Facebook Pixel, Google Ads conversions — client-side and server-side. Built by Meshulash Digital.
- * Version:     1.3.0
+ * Description: Complete marketing tracking suite for ecommerce & lead generation: GTM dataLayer, GA4, Facebook, Google Ads, TikTok, Bing, Pinterest, LinkedIn, Snapchat, Twitter/X, Taboola, Outbrain — client-side and server-side with webhooks. Works with or without WooCommerce. Built by Meshulash Digital.
+ * Version:     1.5.1
  * Author:      Meshulash Digital
  * Author URI:  https://meshulashdigital.com
  * License:     GPL-2.0-or-later
@@ -29,7 +29,7 @@ if ( defined( 'MESHULASH_DISABLE' ) && MESHULASH_DISABLE ) {
     return;
 }
 
-define( 'MESHULASH_VERSION', '1.3.0' );
+define( 'MESHULASH_VERSION', '1.5.1' );
 define( 'MESHULASH_PLUGIN_FILE', __FILE__ );
 define( 'MESHULASH_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'MESHULASH_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -70,6 +70,10 @@ final class Meshulash_Marketing {
         require_once MESHULASH_PLUGIN_DIR . 'includes/class-enrichment.php';
         require_once MESHULASH_PLUGIN_DIR . 'includes/class-mumble.php';
         require_once MESHULASH_PLUGIN_DIR . 'includes/class-catalog.php';
+        require_once MESHULASH_PLUGIN_DIR . 'includes/class-leads.php';
+        require_once MESHULASH_PLUGIN_DIR . 'includes/class-geo.php';
+        require_once MESHULASH_PLUGIN_DIR . 'includes/class-webhooks.php';
+        require_once MESHULASH_PLUGIN_DIR . 'includes/class-event-log.php';
         require_once MESHULASH_PLUGIN_DIR . 'includes/class-updater.php';
     }
 
@@ -85,38 +89,49 @@ final class Meshulash_Marketing {
             return;
         }
 
-        // Frontend — only when WooCommerce is active
-        if ( $this->is_woocommerce_active() ) {
+        $has_wc = $this->is_woocommerce_active();
+
+        // UTM must load on both frontend and admin (meta boxes, order columns, order save hook)
+        new Meshulash_UTM();
+
+        // ── Core tracking — works with or without WooCommerce ──
+        if ( ! is_admin() ) {
             $mode = Meshulash_Settings::get( 'tracking_mode' );
 
             if ( $mode === 'gtm' ) {
                 new Meshulash_GTM();
             } else {
-                new Meshulash_Pixels(); // Direct pixel injection (no GTM needed)
+                new Meshulash_Pixels();
             }
 
             new Meshulash_DataLayer();
-            new Meshulash_Ecommerce();
-            new Meshulash_UTM();
             new Meshulash_Server_Side();
-            new Meshulash_Ajax();
+            new Meshulash_Leads();       // Lead/form tracking (no WC dependency)
+            new Meshulash_Geo();         // Geo-location enrichment
+
+            add_action( 'wp_head', [ $this, 'inject_head_scripts' ], 99 );
+            add_action( 'wp_footer', [ $this, 'inject_footer_scripts' ], 99 );
+        }
+
+        // Always register AJAX handlers (beacon works without WC)
+        new Meshulash_Ajax();
+        new Meshulash_Webhooks();
+        new Meshulash_Event_Log();
+
+        // ── WooCommerce-specific features ──
+        if ( $has_wc ) {
+            new Meshulash_Ecommerce();
             new Meshulash_Enrichment();
             new Meshulash_Mumble();
 
             if ( Meshulash_Settings::get( 'catalog_enabled' ) ) {
                 new Meshulash_Catalog();
             }
-        }
 
-        // Cart restore link handler (works on frontend init)
-        if ( ! is_admin() && $this->is_woocommerce_active() ) {
-            add_action( 'template_redirect', [ $this, 'handle_cart_restore' ] );
-        }
-
-        // Head/Footer custom scripts (works even without WooCommerce)
-        if ( ! is_admin() ) {
-            add_action( 'wp_head', [ $this, 'inject_head_scripts' ], 99 );
-            add_action( 'wp_footer', [ $this, 'inject_footer_scripts' ], 99 );
+            // Cart restore link handler
+            if ( ! is_admin() ) {
+                add_action( 'template_redirect', [ $this, 'handle_cart_restore' ] );
+            }
         }
     }
 

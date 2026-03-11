@@ -55,6 +55,28 @@ class Meshulash_Admin {
             return;
         }
 
+        // Handle custom events save
+        if ( isset( $_POST['meshulash_custom_events'] ) && is_array( $_POST['meshulash_custom_events'] ) ) {
+            $clean_events = [];
+            foreach ( $_POST['meshulash_custom_events'] as $ev ) {
+                if ( empty( $ev['event_name'] ) || empty( $ev['selector'] ) ) continue;
+                $clean_events[] = [
+                    'event_name'     => sanitize_text_field( $ev['event_name'] ),
+                    'selector'       => sanitize_text_field( $ev['selector'] ),
+                    'trigger'        => in_array( $ev['trigger'] ?? 'click', [ 'click', 'submit', 'change', 'focus', 'hover', 'visibility' ], true ) ? $ev['trigger'] : 'click',
+                    'event_category' => sanitize_text_field( $ev['event_category'] ?? '' ),
+                    'event_label'    => sanitize_text_field( $ev['event_label'] ?? '' ),
+                    'event_value'    => sanitize_text_field( $ev['event_value'] ?? '' ),
+                    'server_side'    => ! empty( $ev['server_side'] ),
+                    'once'           => ! isset( $ev['once'] ) || ! empty( $ev['once'] ),
+                ];
+            }
+            update_option( 'meshulash_custom_events', $clean_events );
+        } elseif ( isset( $_POST['meshulash_custom_events_tab'] ) ) {
+            // Tab was submitted but no events — clear them
+            update_option( 'meshulash_custom_events', [] );
+        }
+
         Meshulash_Settings::save( $_POST['meshulash'] ?? [] );
 
         add_action( 'admin_notices', function () {
@@ -77,6 +99,8 @@ class Meshulash_Admin {
             'mumble'      => 'Mumble',
             'scripts'     => 'Scripts',
             'general'     => 'General',
+            'custom_events' => 'Custom Events',
+            'event_log'   => 'Event Log',
             'diagnostics' => 'Diagnostics',
             'dashboard'   => 'Dashboard',
         ];
@@ -113,6 +137,8 @@ class Meshulash_Admin {
                         case 'mumble':      $this->tab_mumble( $s ); break;
                         case 'scripts':     $this->tab_scripts( $s ); break;
                         case 'general':     $this->tab_general( $s ); break;
+                        case 'custom_events': $this->tab_custom_events( $s ); break;
+                        case 'event_log': $this->tab_event_log( $s ); break;
                         case 'diagnostics': $this->tab_diagnostics( $s ); break;
                         case 'dashboard':   $this->tab_dashboard( $s ); break;
                     }
@@ -187,6 +213,16 @@ class Meshulash_Admin {
                 'text', 'Yahoo/Gemini pixel ID.' );
             $this->render_field( 'Yahoo Dot Project ID', 'yahoo_dot_id', $s['yahoo_dot_id'], '10000',
                 'text', 'Yahoo Dot Tag project ID.' );
+            $this->render_field( 'LinkedIn Partner ID', 'linkedin_partner_id', $s['linkedin_partner_id'], '123456',
+                'text', 'From LinkedIn Campaign Manager &rarr; Insight Tag &rarr; Partner ID.' );
+            $this->render_field( 'Snapchat Pixel ID', 'snapchat_pixel_id', $s['snapchat_pixel_id'], 'xxxxxxxx-xxxx-xxxx-xxxx',
+                'text', 'From Snapchat Ads Manager &rarr; Events Manager.' );
+            $this->render_field( 'Twitter / X Pixel ID', 'twitter_pixel_id', $s['twitter_pixel_id'], 'xxxxx',
+                'text', 'From Twitter/X Ads &rarr; Events Manager &rarr; Pixel ID.' );
+            $this->render_field( 'Taboola Pixel ID', 'taboola_pixel_id', $s['taboola_pixel_id'], '1234567',
+                'text', 'From Taboola Ads &rarr; Tracking &rarr; Taboola Pixel.' );
+            $this->render_field( 'Outbrain Pixel ID', 'outbrain_pixel_id', $s['outbrain_pixel_id'], 'xxxxxxxxxxxxxxxx',
+                'text', 'From Outbrain Amplify &rarr; Conversions &rarr; Pixel ID.' );
             ?>
         </table>
         <?php
@@ -214,7 +250,127 @@ class Meshulash_Admin {
                 'gads_label_vip'             => 'VIP Customer',
                 'gads_label_purchase_10plus' => 'Purchase 10+',
             ];
+
+            $engagement_labels = [
+                'gads_label_outbound_click' => 'Outbound Click',
+                'gads_label_form_start'     => 'Form Start',
+                'gads_label_form_abandon'   => 'Form Abandon',
+                'gads_label_video_play'     => 'Video Play',
+                'gads_label_video_progress' => 'Video Progress',
+                'gads_label_video_complete' => 'Video Complete',
+                'gads_label_share'          => 'Share',
+                'gads_label_print_page'     => 'Print Page',
+                'gads_label_copy_text'      => 'Copy Text',
+                'gads_label_file_download'  => 'File Download',
+            ];
+
+            $ecommerce_labels = [
+                'gads_label_view_item'       => 'View Item',
+                'gads_label_view_item_list'  => 'View Item List',
+                'gads_label_remove_from_cart' => 'Remove from Cart',
+                'gads_label_view_cart'       => 'View Cart',
+                'gads_label_add_shipping'    => 'Add Shipping Info',
+                'gads_label_search'          => 'Search',
+                'gads_label_login'           => 'Login',
+                'gads_label_generate_lead'   => 'Generate Lead',
+                'gads_label_form_submit'     => 'Form Submit',
+                'gads_label_add_to_wishlist' => 'Add to Wishlist',
+                'gads_label_coupon_applied'  => 'Coupon Applied',
+                'gads_label_refund'          => 'Refund',
+            ];
+
+            $enrichment_labels = [
+                'gads_label_variation_select'  => 'Variation Select',
+                'gads_label_gallery_click'     => 'Gallery Click',
+                'gads_label_checkout_field'    => 'Checkout Field Focus',
+                'gads_label_cart_abandonment'  => 'Cart Abandonment',
+                'gads_label_quick_view'        => 'Quick View',
+                'gads_label_mini_cart'         => 'Mini Cart Open',
+            ];
+
+            $subscription_labels = [
+                'gads_label_sub_renewal'      => 'Subscription Renewal',
+                'gads_label_sub_cancelled'    => 'Subscription Cancelled',
+                'gads_label_sub_reactivated'  => 'Subscription Reactivated',
+                'gads_label_sub_expired'      => 'Subscription Expired',
+                'gads_label_sub_paused'       => 'Subscription Paused',
+            ];
+
+            $link_labels = [
+                'gads_label_phone_click'     => 'Phone Link Click',
+                'gads_label_email_click'     => 'Email Link Click',
+                'gads_label_whatsapp_click'  => 'WhatsApp Click',
+                'gads_label_social_click'    => 'Social Link Click',
+                'gads_label_maps_click'      => 'Maps Click',
+                'gads_label_cta_click'       => 'CTA Link Click',
+            ];
+
+            $interaction_labels = [
+                'gads_label_scroll_depth'    => 'Scroll Depth',
+                'gads_label_page_timer'      => 'Page Timer',
+            ];
+
             foreach ( $labels as $key => $label ) {
+                $this->render_field( $label, $key, $s[ $key ], 'AbCdEfGhIjKlMn' );
+            }
+            ?>
+        </table>
+
+        <h2>Ecommerce Event Labels</h2>
+        <p class="description">Conversion labels for ecommerce events. Leave blank to skip.</p>
+        <table class="form-table">
+            <?php
+            foreach ( $ecommerce_labels as $key => $label ) {
+                $this->render_field( $label, $key, $s[ $key ], 'AbCdEfGhIjKlMn' );
+            }
+            ?>
+        </table>
+
+        <h2>Engagement Event Labels</h2>
+        <p class="description">Conversion labels for engagement/behavioral events. Leave blank to skip.</p>
+        <table class="form-table">
+            <?php
+            foreach ( $engagement_labels as $key => $label ) {
+                $this->render_field( $label, $key, $s[ $key ], 'AbCdEfGhIjKlMn' );
+            }
+            ?>
+        </table>
+
+        <h2>Enrichment Event Labels</h2>
+        <p class="description">Conversion labels for WooCommerce enrichment events. Leave blank to skip.</p>
+        <table class="form-table">
+            <?php
+            foreach ( $enrichment_labels as $key => $label ) {
+                $this->render_field( $label, $key, $s[ $key ], 'AbCdEfGhIjKlMn' );
+            }
+            ?>
+        </table>
+
+        <h2>Subscription Event Labels</h2>
+        <p class="description">Conversion labels for WooCommerce subscription events. Leave blank to skip.</p>
+        <table class="form-table">
+            <?php
+            foreach ( $subscription_labels as $key => $label ) {
+                $this->render_field( $label, $key, $s[ $key ], 'AbCdEfGhIjKlMn' );
+            }
+            ?>
+        </table>
+
+        <h2>Link Click Labels</h2>
+        <p class="description">Conversion labels for click-to-contact events. Leave blank to skip.</p>
+        <table class="form-table">
+            <?php
+            foreach ( $link_labels as $key => $label ) {
+                $this->render_field( $label, $key, $s[ $key ], 'AbCdEfGhIjKlMn' );
+            }
+            ?>
+        </table>
+
+        <h2>Interaction Event Labels</h2>
+        <p class="description">Conversion labels for page interaction events. A single label covers all thresholds.</p>
+        <table class="form-table">
+            <?php
+            foreach ( $interaction_labels as $key => $label ) {
                 $this->render_field( $label, $key, $s[ $key ], 'AbCdEfGhIjKlMn' );
             }
             ?>
@@ -332,6 +488,32 @@ class Meshulash_Admin {
             WhatsApp, Social media (Facebook, Instagram, TikTok, LinkedIn, Twitter),
             Google Maps / Waze, and CTA buttons.
         </div>
+
+        <hr>
+
+        <h2>Engagement Events</h2>
+        <p class="description">Auto-detected marketing engagement events. No configuration needed — just enable and they work automatically.</p>
+        <table class="form-table">
+            <?php
+            $engagement_events = [
+                'event_outbound_click'  => 'Outbound Link Clicks (clicks to external domains)',
+                'event_form_start'      => 'Form Start (first field interaction — shows intent)',
+                'event_form_abandon'    => 'Form Abandonment (started form but left without submitting)',
+                'event_video_tracking'  => 'Video Play/Progress/Complete (YouTube &amp; Vimeo embeds)',
+                'event_share'           => 'Social Share (native Web Share API + share button clicks)',
+                'event_print'           => 'Print Page (user prints the page)',
+                'event_copy'            => 'Copy Text (user copies content from the page)',
+            ];
+            foreach ( $engagement_events as $key => $label ) {
+                $this->render_toggle( $label, $key, $s[ $key ] );
+            }
+            ?>
+        </table>
+        <div class="meshulash-info-box">
+            <strong>Video tracking:</strong> Automatically detects YouTube and Vimeo embeds. Fires <code>video_play</code>,
+            <code>video_progress</code> (25%, 50%, 75%), and <code>video_complete</code> events.<br>
+            <strong>Form abandon:</strong> Detected via beacon on page unload — works even when the tab is closed.
+        </div>
         <?php
     }
 
@@ -375,6 +557,50 @@ class Meshulash_Admin {
                 'Generate in TikTok Events Manager &rarr; Settings &rarr; Events API.' );
             $this->render_field( 'Test Event Code', 'tt_test_event_code', $s['tt_test_event_code'], 'TEST12345',
                 'text', 'Optional. Use for testing. Remove for production.' );
+            ?>
+        </table>
+
+        <hr>
+
+        <h2>Pinterest Conversions API</h2>
+        <p class="description">Server-side events sent directly to Pinterest for better attribution and match rates.</p>
+        <table class="form-table">
+            <?php
+            $this->render_toggle( 'Enable Pinterest CAPI', 'pinterest_capi_enabled', $s['pinterest_capi_enabled'] );
+            $this->render_field( 'Ad Account ID', 'pinterest_ad_account_id', $s['pinterest_ad_account_id'], '123456789',
+                'text', 'From Pinterest Ads &rarr; Ad Account ID (numeric).' );
+            $this->render_field( 'Access Token', 'pinterest_access_token', $s['pinterest_access_token'], 'pina_xxxxxxx...', 'password',
+                'Generate in Pinterest Business &rarr; Apps &rarr; Generate Token with <code>ads:write</code> scope.' );
+            ?>
+        </table>
+
+        <hr>
+
+        <h2>Webhooks</h2>
+        <p class="description">Send real-time event data to external services via HTTP webhooks. Compatible with Zapier, Make (Integromat), n8n, and any webhook receiver.</p>
+        <table class="form-table">
+            <?php
+            $this->render_toggle( 'Enable Webhooks', 'webhook_enabled', $s['webhook_enabled'] );
+            $this->render_field( 'Webhook URL', 'webhook_url', $s['webhook_url'], 'https://hooks.zapier.com/hooks/catch/...', 'text',
+                'The endpoint URL that will receive POST requests with event data.' );
+            $this->render_field( 'Webhook Secret', 'webhook_secret', $s['webhook_secret'], '', 'password',
+                'Optional. Used to generate an HMAC-SHA256 signature in the <code>X-Meshulash-Signature</code> header for verifying authenticity.' );
+            $this->render_field( 'Event Filter', 'webhook_events', $s['webhook_events'], 'all', 'text',
+                'Comma-separated event names to send (e.g. <code>Purchase,Lead</code>). Use <code>all</code> to send everything.' );
+            ?>
+        </table>
+        <div class="meshulash-info-box">
+            <strong>Webhook payload includes:</strong> event name, event ID, timestamp, custom data, order details (if WC), UTM attribution, and geo data.<br>
+            <strong>Headers:</strong> <code>Content-Type: application/json</code>, <code>X-Meshulash-Signature</code> (HMAC-SHA256 if secret is set).
+        </div>
+
+        <hr>
+
+        <h2>Event Log</h2>
+        <p class="description">Real-time event log for debugging. Stores the last 100 server-side events.</p>
+        <table class="form-table">
+            <?php
+            $this->render_toggle( 'Enable Event Log', 'event_log_enabled', $s['event_log_enabled'] );
             ?>
         </table>
 
@@ -449,6 +675,34 @@ class Meshulash_Admin {
             &bull; Hidden form fields (<code>meshulash_journey</code>) — sent with webhooks/CRM<br>
             &bull; WooCommerce order meta — visible as a visual timeline in the order admin<br><br>
             <strong>Example path:</strong> Google Ad &rarr; Category Page &rarr; Product Page &rarr; Add to Cart &rarr; Checkout &rarr; Purchase
+        </div>
+
+        <hr>
+
+        <h2>Multi-Touch Attribution Model</h2>
+        <p class="description">Choose how conversion credit is distributed across multiple marketing touchpoints (UTM sources). Used in the Dashboard for revenue attribution.</p>
+        <table class="form-table">
+            <tr>
+                <th scope="row"><label for="meshulash_attribution_model">Attribution Model</label></th>
+                <td>
+                    <select name="meshulash[attribution_model]" id="meshulash_attribution_model">
+                        <option value="last_click" <?php selected( $s['attribution_model'], 'last_click' ); ?>>Last Click (default)</option>
+                        <option value="first_click" <?php selected( $s['attribution_model'], 'first_click' ); ?>>First Click</option>
+                        <option value="linear" <?php selected( $s['attribution_model'], 'linear' ); ?>>Linear</option>
+                        <option value="time_decay" <?php selected( $s['attribution_model'], 'time_decay' ); ?>>Time Decay</option>
+                        <option value="position_based" <?php selected( $s['attribution_model'], 'position_based' ); ?>>Position-Based (U-Shaped)</option>
+                    </select>
+                    <p class="description">Determines how revenue is attributed when a customer interacts with multiple sources before converting.</p>
+                </td>
+            </tr>
+        </table>
+        <div class="meshulash-info-box">
+            <strong>Attribution Models:</strong><br>
+            &bull; <strong>Last Click:</strong> 100% credit to the last touchpoint before conversion<br>
+            &bull; <strong>First Click:</strong> 100% credit to the first touchpoint<br>
+            &bull; <strong>Linear:</strong> Equal credit split across all touchpoints<br>
+            &bull; <strong>Time Decay:</strong> More credit to touchpoints closer to conversion (7-day half-life)<br>
+            &bull; <strong>Position-Based:</strong> 40% to first, 40% to last, 20% split among middle touchpoints
         </div>
         <?php
     }
@@ -611,6 +865,38 @@ class Meshulash_Admin {
 
         <hr>
 
+        <h2>Geo-Location Enrichment</h2>
+        <p class="description">Enrich server-side events with visitor's geo-location data (country, region, city, timezone) for better ad matching and analytics.</p>
+        <table class="form-table">
+            <?php
+            $this->render_toggle( 'Enable Geo Enrichment', 'geo_enrichment', $s['geo_enrichment'] );
+            ?>
+        </table>
+        <div class="meshulash-info-box">
+            <strong>How it works:</strong><br>
+            Visitor geo-location is detected using multiple sources (in order of priority):<br>
+            &bull; <strong>CloudFlare headers</strong> — instant, no API call (if your site uses CloudFlare)<br>
+            &bull; <strong>Server GeoIP headers</strong> — Nginx/Apache GeoIP module, Sucuri<br>
+            &bull; <strong>IP API lookup</strong> — free API with 30-day caching per IP<br><br>
+            <strong>Data enriched:</strong> country, region, city, timezone, ISP.<br>
+            This data is added to Facebook CAPI <code>user_data</code> (hashed city/state/zip/country),
+            pushed to the frontend <code>dataLayer</code>, and available in your dashboards &amp; reports.<br><br>
+            Built directly into the plugin — no external proxy needed.
+        </div>
+
+        <hr>
+
+        <h2>Default Currency</h2>
+        <p class="description">Used when WooCommerce is not active (lead-generation sites). WooCommerce sites automatically use the store currency.</p>
+        <table class="form-table">
+            <?php
+            $this->render_field( 'Currency Code', 'default_currency', $s['default_currency'] ?? 'ILS', 'ILS', 'text',
+                'ISO 4217 currency code (e.g., USD, EUR, ILS, GBP).' );
+            ?>
+        </table>
+
+        <hr>
+
         <h2>Duplicate Purchase Prevention</h2>
         <table class="form-table">
             <?php
@@ -699,6 +985,11 @@ class Meshulash_Admin {
             $this->render_toggle( 'Pinterest Consent', 'consent_pinterest', $s['consent_pinterest'] );
             $this->render_toggle( 'Reddit Consent', 'consent_reddit', $s['consent_reddit'] );
             $this->render_toggle( 'Yahoo Consent', 'consent_yahoo', $s['consent_yahoo'] );
+            $this->render_toggle( 'LinkedIn Consent', 'consent_linkedin', $s['consent_linkedin'] );
+            $this->render_toggle( 'Snapchat Consent', 'consent_snapchat', $s['consent_snapchat'] );
+            $this->render_toggle( 'Twitter/X Consent', 'consent_twitter', $s['consent_twitter'] );
+            $this->render_toggle( 'Taboola Consent', 'consent_taboola', $s['consent_taboola'] );
+            $this->render_toggle( 'Outbrain Consent', 'consent_outbrain', $s['consent_outbrain'] );
             ?>
         </table>
         <div class="meshulash-info-box">
@@ -1147,6 +1438,258 @@ class Meshulash_Admin {
     }
 
     // ──────────────────────────────────────────────
+    //  Tab: Custom Events
+    // ──────────────────────────────────────────────
+    private function tab_custom_events( $s ) {
+        $events = get_option( 'meshulash_custom_events', [] );
+        if ( ! is_array( $events ) ) $events = [];
+        ?>
+        <input type="hidden" name="meshulash_custom_events_tab" value="1">
+        <h2>Custom Events</h2>
+        <p class="description">Define your own tracking events. Each event fires to the dataLayer and is automatically dispatched to all configured platforms (GA4, Facebook, Google Ads, TikTok, etc.) — both client-side and server-side.</p>
+
+        <div id="meshulash-custom-events-list">
+            <?php if ( empty( $events ) ) : ?>
+            <div class="meshulash-custom-event-row" data-index="0" style="background:#f9f9f9;border:1px solid #ddd;padding:12px;margin-bottom:12px;border-radius:4px;">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+                    <div>
+                        <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Event Name *</label>
+                        <input type="text" name="meshulash_custom_events[0][event_name]" placeholder="e.g. video_play" class="regular-text" style="width:180px;">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">CSS Selector *</label>
+                        <input type="text" name="meshulash_custom_events[0][selector]" placeholder="e.g. .play-button, #video" class="regular-text" style="width:220px;">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Trigger</label>
+                        <select name="meshulash_custom_events[0][trigger]" style="width:120px;">
+                            <option value="click">Click</option>
+                            <option value="submit">Submit</option>
+                            <option value="change">Change</option>
+                            <option value="focus">Focus</option>
+                            <option value="hover">Hover</option>
+                            <option value="visibility">Element Visible</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Category</label>
+                        <input type="text" name="meshulash_custom_events[0][event_category]" placeholder="optional" style="width:120px;">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Label</label>
+                        <input type="text" name="meshulash_custom_events[0][event_label]" placeholder="optional" style="width:120px;">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Value</label>
+                        <input type="text" name="meshulash_custom_events[0][event_value]" placeholder="0" style="width:70px;">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Server-Side</label>
+                        <input type="checkbox" name="meshulash_custom_events[0][server_side]" value="1">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Once</label>
+                        <input type="checkbox" name="meshulash_custom_events[0][once]" value="1" checked>
+                    </div>
+                    <button type="button" class="button meshulash-remove-event" style="color:#d63638;border-color:#d63638;">&times; Remove</button>
+                </div>
+            </div>
+            <?php else : ?>
+                <?php foreach ( $events as $i => $ev ) : ?>
+                <div class="meshulash-custom-event-row" data-index="<?php echo $i; ?>" style="background:#f9f9f9;border:1px solid #ddd;padding:12px;margin-bottom:12px;border-radius:4px;">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+                        <div>
+                            <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Event Name *</label>
+                            <input type="text" name="meshulash_custom_events[<?php echo $i; ?>][event_name]" value="<?php echo esc_attr( $ev['event_name'] ); ?>" class="regular-text" style="width:180px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">CSS Selector *</label>
+                            <input type="text" name="meshulash_custom_events[<?php echo $i; ?>][selector]" value="<?php echo esc_attr( $ev['selector'] ); ?>" class="regular-text" style="width:220px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Trigger</label>
+                            <select name="meshulash_custom_events[<?php echo $i; ?>][trigger]" style="width:120px;">
+                                <option value="click" <?php selected( $ev['trigger'], 'click' ); ?>>Click</option>
+                                <option value="submit" <?php selected( $ev['trigger'], 'submit' ); ?>>Submit</option>
+                                <option value="change" <?php selected( $ev['trigger'], 'change' ); ?>>Change</option>
+                                <option value="focus" <?php selected( $ev['trigger'], 'focus' ); ?>>Focus</option>
+                                <option value="hover" <?php selected( $ev['trigger'], 'hover' ); ?>>Hover</option>
+                                <option value="visibility" <?php selected( $ev['trigger'], 'visibility' ); ?>>Element Visible</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Category</label>
+                            <input type="text" name="meshulash_custom_events[<?php echo $i; ?>][event_category]" value="<?php echo esc_attr( $ev['event_category'] ?? '' ); ?>" style="width:120px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Label</label>
+                            <input type="text" name="meshulash_custom_events[<?php echo $i; ?>][event_label]" value="<?php echo esc_attr( $ev['event_label'] ?? '' ); ?>" style="width:120px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Value</label>
+                            <input type="text" name="meshulash_custom_events[<?php echo $i; ?>][event_value]" value="<?php echo esc_attr( $ev['event_value'] ?? '' ); ?>" style="width:70px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Server-Side</label>
+                            <input type="checkbox" name="meshulash_custom_events[<?php echo $i; ?>][server_side]" value="1" <?php checked( ! empty( $ev['server_side'] ) ); ?>>
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Once</label>
+                            <input type="checkbox" name="meshulash_custom_events[<?php echo $i; ?>][once]" value="1" <?php checked( $ev['once'] ?? true ); ?>>
+                        </div>
+                        <button type="button" class="button meshulash-remove-event" style="color:#d63638;border-color:#d63638;">&times; Remove</button>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+
+        <p>
+            <button type="button" id="meshulash-add-event" class="button button-secondary">+ Add Custom Event</button>
+        </p>
+
+        <div class="meshulash-info-box">
+            <strong>How it works:</strong><br>
+            &bull; <strong>Event Name:</strong> The event pushed to dataLayer (e.g. <code>video_play</code>, <code>whatsapp_cta_click</code>)<br>
+            &bull; <strong>CSS Selector:</strong> Which element to track (e.g. <code>.play-btn</code>, <code>#cta-whatsapp</code>, <code>a[href*="wa.me"]</code>)<br>
+            &bull; <strong>Trigger:</strong> What interaction fires the event (click, hover, form submit, visibility on screen, etc.)<br>
+            &bull; <strong>Category/Label/Value:</strong> Optional extra data sent with the event<br>
+            &bull; <strong>Server-Side:</strong> When checked, the event is also sent via sendBeacon to Facebook CAPI, GA4 Measurement Protocol, and TikTok Events API<br>
+            &bull; <strong>Once:</strong> Fire only once per page load (prevents duplicate triggers)<br><br>
+            <strong>All platforms:</strong> Custom events are pushed to the dataLayer, which the dispatcher automatically sends to GA4, Facebook (as trackCustom), Google Ads, TikTok, Bing, Pinterest, and Reddit. If "Server-Side" is checked, they're also sent via CAPI/MP/TikTok API.
+        </div>
+
+        <script>
+        jQuery(function($){
+            var $list = $('#meshulash-custom-events-list');
+            var idx = $list.find('.meshulash-custom-event-row').length;
+
+            $('#meshulash-add-event').on('click', function(){
+                var html = '<div class="meshulash-custom-event-row" data-index="'+idx+'" style="background:#f9f9f9;border:1px solid #ddd;padding:12px;margin-bottom:12px;border-radius:4px;">' +
+                    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">' +
+                    '<div><label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Event Name *</label><input type="text" name="meshulash_custom_events['+idx+'][event_name]" placeholder="e.g. video_play" class="regular-text" style="width:180px;"></div>' +
+                    '<div><label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">CSS Selector *</label><input type="text" name="meshulash_custom_events['+idx+'][selector]" placeholder="e.g. .play-button" class="regular-text" style="width:220px;"></div>' +
+                    '<div><label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Trigger</label><select name="meshulash_custom_events['+idx+'][trigger]" style="width:120px;"><option value="click">Click</option><option value="submit">Submit</option><option value="change">Change</option><option value="focus">Focus</option><option value="hover">Hover</option><option value="visibility">Element Visible</option></select></div>' +
+                    '<div><label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Category</label><input type="text" name="meshulash_custom_events['+idx+'][event_category]" placeholder="optional" style="width:120px;"></div>' +
+                    '<div><label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Label</label><input type="text" name="meshulash_custom_events['+idx+'][event_label]" placeholder="optional" style="width:120px;"></div>' +
+                    '<div><label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Value</label><input type="text" name="meshulash_custom_events['+idx+'][event_value]" placeholder="0" style="width:70px;"></div>' +
+                    '<div><label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Server-Side</label><input type="checkbox" name="meshulash_custom_events['+idx+'][server_side]" value="1"></div>' +
+                    '<div><label style="display:block;font-size:11px;font-weight:600;margin-bottom:2px;">Once</label><input type="checkbox" name="meshulash_custom_events['+idx+'][once]" value="1" checked></div>' +
+                    '<button type="button" class="button meshulash-remove-event" style="color:#d63638;border-color:#d63638;">&times; Remove</button>' +
+                    '</div></div>';
+                $list.append(html);
+                idx++;
+            });
+
+            $list.on('click', '.meshulash-remove-event', function(){
+                $(this).closest('.meshulash-custom-event-row').remove();
+            });
+        });
+        </script>
+        <?php
+    }
+
+    // ──────────────────────────────────────────────
+    //  Tab: Event Log
+    // ──────────────────────────────────────────────
+    private function tab_event_log( $s ) {
+        if ( ! $s['event_log_enabled'] ) {
+            echo '<h2>Event Log</h2>';
+            echo '<p>Event logging is disabled. Enable it in the <a href="?page=meshulash-marketing&tab=server_side">Server-Side tab</a>.</p>';
+            return;
+        }
+
+        $entries = Meshulash_Event_Log::get_entries( 100 );
+        ?>
+        <h2>Real-Time Event Log</h2>
+        <p class="description">Last <?php echo count( $entries ); ?> server-side events. Auto-refreshes every 10 seconds.</p>
+
+        <p>
+            <button type="button" id="meshulash-refresh-log" class="button button-secondary">Refresh</button>
+            <button type="button" id="meshulash-clear-log" class="button" style="color:#d63638;border-color:#d63638;">Clear Log</button>
+            <button type="button" id="meshulash-export-log-csv" class="button">Export CSV</button>
+        </p>
+
+        <table class="widefat striped" style="max-width:1200px;" id="meshulash-log-table">
+            <thead>
+                <tr>
+                    <th>Time (UTC)</th>
+                    <th>Event</th>
+                    <th>Source</th>
+                    <th>Event ID</th>
+                    <th>Value</th>
+                    <th>IP</th>
+                    <th>URL</th>
+                </tr>
+            </thead>
+            <tbody id="meshulash-log-body">
+                <?php if ( empty( $entries ) ) : ?>
+                <tr><td colspan="7" style="text-align:center;color:#999;">No events logged yet.</td></tr>
+                <?php else : ?>
+                <?php foreach ( $entries as $entry ) : ?>
+                <tr>
+                    <td style="white-space:nowrap;font-size:12px;"><?php echo esc_html( $entry['time'] ); ?></td>
+                    <td><strong><?php echo esc_html( $entry['event'] ); ?></strong></td>
+                    <td><span style="background:<?php echo $entry['source'] === 'server' ? '#e8f5e9' : '#e3f2fd'; ?>;padding:2px 6px;border-radius:3px;font-size:11px;"><?php echo esc_html( $entry['source'] ); ?></span></td>
+                    <td style="font-family:monospace;font-size:11px;"><?php echo esc_html( $entry['event_id'] ?? '' ); ?></td>
+                    <td><?php echo isset( $entry['value'] ) ? esc_html( ( $entry['currency'] ?? '' ) . ' ' . number_format( $entry['value'], 2 ) ) : '—'; ?></td>
+                    <td style="font-size:12px;"><?php echo esc_html( $entry['ip'] ?? '' ); ?></td>
+                    <td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><?php echo esc_html( $entry['url'] ?? '' ); ?></td>
+                </tr>
+                <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+
+        <script>
+        jQuery(function($){
+            var ajaxUrl='<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>';
+
+            function refreshLog(){
+                $.post(ajaxUrl,{action:'meshulash_get_event_log'},function(res){
+                    if(!res.success)return;
+                    var entries=res.data.entries||[];
+                    var $body=$('#meshulash-log-body');
+                    if(!entries.length){$body.html('<tr><td colspan="7" style="text-align:center;color:#999;">No events logged yet.</td></tr>');return;}
+                    var html='';
+                    entries.forEach(function(e){
+                        var valStr=e.value!==undefined?(e.currency||'')+' '+ parseFloat(e.value).toFixed(2):'—';
+                        var srcColor=e.source==='server'?'#e8f5e9':'#e3f2fd';
+                        html+='<tr><td style="white-space:nowrap;font-size:12px;">'+esc(e.time)+'</td><td><strong>'+esc(e.event)+'</strong></td><td><span style="background:'+srcColor+';padding:2px 6px;border-radius:3px;font-size:11px;">'+esc(e.source)+'</span></td><td style="font-family:monospace;font-size:11px;">'+esc(e.event_id||'')+'</td><td>'+esc(valStr)+'</td><td style="font-size:12px;">'+esc(e.ip||'')+'</td><td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(e.url||'')+'</td></tr>';
+                    });
+                    $body.html(html);
+                });
+            }
+            function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+
+            $('#meshulash-refresh-log').on('click',refreshLog);
+            setInterval(refreshLog,10000);
+
+            $('#meshulash-clear-log').on('click',function(){
+                if(!confirm('Clear all event log entries?'))return;
+                $.post(ajaxUrl,{action:'meshulash_clear_event_log'},function(){refreshLog();});
+            });
+
+            $('#meshulash-export-log-csv').on('click',function(){
+                var rows=[['Time','Event','Source','Event ID','Value','Currency','IP','URL']];
+                $('#meshulash-log-body tr').each(function(){
+                    var cells=[];
+                    $(this).find('td').each(function(){cells.push('"'+$(this).text().replace(/"/g,'""').trim()+'"');});
+                    if(cells.length>1)rows.push(cells);
+                });
+                var csv=rows.map(function(r){return r.join(',');}).join('\n');
+                var blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+                var link=document.createElement('a');
+                link.href=URL.createObjectURL(blob);
+                link.download='meshulash-event-log-'+new Date().toISOString().slice(0,10)+'.csv';
+                link.click();
+            });
+        });
+        </script>
+        <?php
+    }
+
+    // ──────────────────────────────────────────────
     //  Tab: Diagnostics
     // ──────────────────────────────────────────────
     private function tab_diagnostics( $s ) {
@@ -1248,6 +1791,71 @@ class Meshulash_Admin {
             'note'   => '',
         ];
 
+        // Pinterest CAPI
+        $pin_capi_ok = $s['pinterest_capi_enabled'] && ! empty( $s['pinterest_access_token'] ) && ! empty( $s['pinterest_ad_account_id'] );
+        $checks[] = [
+            'label' => 'Pinterest CAPI',
+            'value' => $s['pinterest_capi_enabled'] ? 'Enabled' : 'Disabled',
+            'status' => ! $s['pinterest_capi_enabled'] ? 'off' : ( $pin_capi_ok ? 'ok' : 'error' ),
+            'note'   => $s['pinterest_capi_enabled'] && empty( $s['pinterest_access_token'] ) ? 'Access token missing' : '',
+        ];
+
+        // LinkedIn
+        $checks[] = [
+            'label' => 'LinkedIn Insight Tag',
+            'value' => $s['linkedin_partner_id'] ?: '—',
+            'status' => ! empty( $s['linkedin_partner_id'] ) ? 'ok' : 'off',
+            'note'   => '',
+        ];
+
+        // Snapchat
+        $checks[] = [
+            'label' => 'Snapchat Pixel',
+            'value' => $s['snapchat_pixel_id'] ?: '—',
+            'status' => ! empty( $s['snapchat_pixel_id'] ) ? 'ok' : 'off',
+            'note'   => '',
+        ];
+
+        // Twitter/X
+        $checks[] = [
+            'label' => 'Twitter/X Pixel',
+            'value' => $s['twitter_pixel_id'] ?: '—',
+            'status' => ! empty( $s['twitter_pixel_id'] ) ? 'ok' : 'off',
+            'note'   => '',
+        ];
+
+        // Taboola
+        $checks[] = [
+            'label' => 'Taboola Pixel',
+            'value' => $s['taboola_pixel_id'] ?: '—',
+            'status' => ! empty( $s['taboola_pixel_id'] ) ? 'ok' : 'off',
+            'note'   => '',
+        ];
+
+        // Outbrain
+        $checks[] = [
+            'label' => 'Outbrain Pixel',
+            'value' => $s['outbrain_pixel_id'] ?: '—',
+            'status' => ! empty( $s['outbrain_pixel_id'] ) ? 'ok' : 'off',
+            'note'   => '',
+        ];
+
+        // Webhooks
+        $checks[] = [
+            'label' => 'Webhooks',
+            'value' => $s['webhook_enabled'] ? 'Enabled' : 'Disabled',
+            'status' => ! $s['webhook_enabled'] ? 'off' : ( ! empty( $s['webhook_url'] ) ? 'ok' : 'error' ),
+            'note'   => $s['webhook_enabled'] && empty( $s['webhook_url'] ) ? 'Webhook URL missing' : '',
+        ];
+
+        // Event Log
+        $checks[] = [
+            'label' => 'Event Log',
+            'value' => $s['event_log_enabled'] ? 'Enabled' : 'Disabled',
+            'status' => $s['event_log_enabled'] ? 'ok' : 'off',
+            'note'   => '',
+        ];
+
         // Consent Mode
         $checks[] = [
             'label' => 'Consent Mode v2',
@@ -1276,9 +1884,28 @@ class Meshulash_Admin {
         $woo_active = class_exists( 'WooCommerce' );
         $checks[] = [
             'label' => 'WooCommerce',
-            'value' => $woo_active ? 'Active (v' . WC()->version . ')' : 'Not found',
-            'status' => $woo_active ? 'ok' : 'warn',
-            'note'   => ! $woo_active ? 'Ecommerce tracking requires WooCommerce' : '',
+            'value' => $woo_active ? 'Active (v' . WC()->version . ')' : 'Not installed (Lead Mode)',
+            'status' => $woo_active ? 'ok' : 'ok',
+            'note'   => ! $woo_active ? 'Core tracking + lead gen active. Install WooCommerce for ecommerce events.' : '',
+        ];
+
+        // Geo Enrichment
+        $geo_enabled = $s['geo_enrichment'];
+        $geo_source = '';
+        if ( $geo_enabled ) {
+            if ( ! empty( $_SERVER['HTTP_CF_IPCOUNTRY'] ) ) {
+                $geo_source = 'CloudFlare';
+            } elseif ( ! empty( $_SERVER['GEOIP_COUNTRY_CODE'] ) ) {
+                $geo_source = 'Server GeoIP';
+            } else {
+                $geo_source = 'IP API (cached)';
+            }
+        }
+        $checks[] = [
+            'label' => 'Geo Enrichment',
+            'value' => $geo_enabled ? 'Enabled (' . $geo_source . ')' : 'Disabled',
+            'status' => $geo_enabled ? 'ok' : 'off',
+            'note'   => $geo_enabled ? 'Events enriched with country, region, city, timezone' : '',
         ];
 
         // Mumble
@@ -1290,6 +1917,16 @@ class Meshulash_Admin {
                 'note'   => empty( $s['mumble_api_key'] ) ? 'API key missing' : '',
             ];
         }
+
+        // Engagement Events summary
+        $eng_events = [ 'event_outbound_click', 'event_form_start', 'event_form_abandon', 'event_video_tracking', 'event_share', 'event_print', 'event_copy' ];
+        $eng_active = array_filter( $eng_events, function( $k ) use ( $s ) { return ! empty( $s[ $k ] ); } );
+        $checks[] = [
+            'label' => 'Engagement Events',
+            'value' => count( $eng_active ) . '/' . count( $eng_events ) . ' enabled',
+            'status' => count( $eng_active ) > 0 ? 'ok' : 'off',
+            'note'   => count( $eng_active ) > 0 ? implode( ', ', array_map( function( $k ) { return str_replace( 'event_', '', $k ); }, $eng_active ) ) : '',
+        ];
 
         $icons = [ 'ok' => '&#9989;', 'warn' => '&#9888;&#65039;', 'error' => '&#10060;', 'off' => '&#9898;' ];
         ?>
@@ -1471,7 +2108,7 @@ class Meshulash_Admin {
             </div>
             <div style="flex:1;padding:16px;background:#fff8e1;border-left:4px solid #dba617;border-radius:4px;">
                 <div style="font-size:24px;font-weight:700;"><?php echo $total_orders ? esc_html( $currency . number_format( $total_rev / $total_orders, 0 ) ) : '—'; ?></div>
-                <div style="color:#666;">AOV</div>
+                <div style="color:#666;">AOV (Avg. Order Value)</div>
             </div>
             <div style="flex:1;padding:16px;background:#fce4ec;border-left:4px solid #d63638;border-radius:4px;">
                 <div style="font-size:24px;font-weight:700;"><?php echo count( $by_source ); ?></div>
@@ -1523,6 +2160,44 @@ class Meshulash_Admin {
             No orders with UTM data found in the last <?php echo $days; ?> days. UTM data is captured on checkout
             when customers arrive via UTM-tagged links. Try a longer date range or check that UTM tracking is enabled.
         </div>
+        <?php endif; ?>
+
+        <?php if ( $total_orders > 0 ) : ?>
+        <hr>
+        <h3>Export Data</h3>
+        <p>
+            <button type="button" id="meshulash-export-csv" class="button button-secondary">Export Dashboard as CSV</button>
+        </p>
+        <script>
+        jQuery(function($){
+            $('#meshulash-export-csv').on('click',function(){
+                var rows=[['Type','Name','Orders','Revenue','AOV','Share %']];
+                <?php
+                foreach ( $by_source as $name => $row ) {
+                    $pct = $total_rev > 0 ? round( ( $row['revenue'] / $total_rev ) * 100, 1 ) : 0;
+                    $aov = $row['orders'] > 0 ? round( $row['revenue'] / $row['orders'], 2 ) : 0;
+                    echo "rows.push(['Source'," . wp_json_encode( $name ) . "," . $row['orders'] . "," . round( $row['revenue'], 2 ) . "," . $aov . "," . $pct . "]);\n";
+                }
+                foreach ( $by_medium as $name => $row ) {
+                    $pct = $total_rev > 0 ? round( ( $row['revenue'] / $total_rev ) * 100, 1 ) : 0;
+                    $aov = $row['orders'] > 0 ? round( $row['revenue'] / $row['orders'], 2 ) : 0;
+                    echo "rows.push(['Medium'," . wp_json_encode( $name ) . "," . $row['orders'] . "," . round( $row['revenue'], 2 ) . "," . $aov . "," . $pct . "]);\n";
+                }
+                foreach ( $by_campaign as $name => $row ) {
+                    $pct = $total_rev > 0 ? round( ( $row['revenue'] / $total_rev ) * 100, 1 ) : 0;
+                    $aov = $row['orders'] > 0 ? round( $row['revenue'] / $row['orders'], 2 ) : 0;
+                    echo "rows.push(['Campaign'," . wp_json_encode( $name ) . "," . $row['orders'] . "," . round( $row['revenue'], 2 ) . "," . $aov . "," . $pct . "]);\n";
+                }
+                ?>
+                var csv=rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+                var blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+                var link=document.createElement('a');
+                link.href=URL.createObjectURL(blob);
+                link.download='meshulash-dashboard-<?php echo $days; ?>d-'+new Date().toISOString().slice(0,10)+'.csv';
+                link.click();
+            });
+        });
+        </script>
         <?php endif; ?>
         <?php
     }

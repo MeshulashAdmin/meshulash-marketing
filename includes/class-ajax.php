@@ -27,6 +27,10 @@ class Meshulash_Ajax {
     public function get_product() {
         check_ajax_referer( 'meshulash_nonce', 'nonce' );
 
+        if ( ! function_exists( 'wc_get_product' ) ) {
+            wp_send_json_error( 'WooCommerce not active' );
+        }
+
         $product_id = isset( $_POST['product_id'] ) ? intval( $_POST['product_id'] ) : 0;
         $quantity   = isset( $_POST['quantity'] ) ? max( 1, intval( $_POST['quantity'] ) ) : 1;
 
@@ -53,6 +57,10 @@ class Meshulash_Ajax {
      */
     public function shipping_info() {
         check_ajax_referer( 'meshulash_nonce', 'nonce' );
+
+        if ( ! function_exists( 'WC' ) ) {
+            wp_send_json_error( 'WooCommerce not active' );
+        }
 
         if ( ! Meshulash_Settings::get( 'event_add_shipping_info' ) ) {
             wp_send_json_success( [ 'skipped' => true ] );
@@ -92,6 +100,10 @@ class Meshulash_Ajax {
      */
     public function payment_info() {
         check_ajax_referer( 'meshulash_nonce', 'nonce' );
+
+        if ( ! function_exists( 'WC' ) ) {
+            wp_send_json_error( 'WooCommerce not active' );
+        }
 
         if ( ! Meshulash_Settings::get( 'event_add_payment_info' ) ) {
             wp_send_json_success( [ 'skipped' => true ] );

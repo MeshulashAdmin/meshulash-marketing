@@ -44,6 +44,14 @@
             firedEvents[data.event_id] = true;
         }
 
+        // Enrich with geo data if available
+        if (M.geo && M.geo.country && !data.geo_country) {
+            data.geo_country  = M.geo.country;
+            data.geo_region   = M.geo.region || '';
+            data.geo_city     = M.geo.city || '';
+            data.geo_timezone = M.geo.timezone || '';
+        }
+
         // Clear previous ecommerce (GA4 best practice)
         window.dataLayer.push({ ecommerce: null });
         window.dataLayer.push(data);
@@ -275,6 +283,27 @@
                 link_url: href
             }, 'cta_link_click');
         });
+
+        // Outbound link clicks — any link to a different domain
+        if (M.event_outbound_click !== false) {
+            var currentHost = window.location.hostname.replace('www.', '');
+            $(document).on('click', 'a[href]', function () {
+                var href = this.href || '';
+                if (!href || href.indexOf('http') !== 0) return;
+                try {
+                    var linkHost = new URL(href).hostname.replace('www.', '');
+                    if (linkHost && linkHost !== currentHost) {
+                        pushDL({
+                            event: 'outbound_click',
+                            event_id: eid('ob'),
+                            link_url: href,
+                            link_text: $(this).text().trim().substring(0, 100),
+                            outbound_domain: linkHost
+                        }, 'outbound_click: ' + linkHost);
+                    }
+                } catch (e) {}
+            });
+        }
     }
 
     // ══════════════════════════════════════════════
@@ -1176,6 +1205,346 @@
     }
 
     // ══════════════════════════════════════════════
+    //  FORM START & FORM ABANDONMENT
+    // ══════════════════════════════════════════════
+    (function () {
+        var formStartEnabled = M.event_form_start !== false;
+        var formAbandonEnabled = M.event_form_abandon !== false;
+        if (!formStartEnabled && !formAbandonEnabled) return;
+
+        var startedForms = {};   // formKey => true
+        var submittedForms = {}; // formKey => true
+
+        function getFormKey(form) {
+            return form.id || form.getAttribute('name') || form.action || 'form_' + Array.prototype.indexOf.call(document.forms, form);
+        }
+
+        // Detect form start — first field interaction
+        if (formStartEnabled) {
+            $(document).on('focus', 'form input, form select, form textarea', function () {
+                var form = $(this).closest('form')[0];
+                if (!form) return;
+                // Skip WooCommerce checkout/cart forms (handled separately)
+                if ($(form).hasClass('woocommerce-checkout') || $(form).hasClass('woocommerce-cart-form')) return;
+                var key = getFormKey(form);
+                if (startedForms[key]) return;
+                startedForms[key] = true;
+                pushDL({
+                    event: 'form_start',
+                    event_id: eid('fs'),
+                    form_id: form.id || '',
+                    form_name: form.getAttribute('name') || form.id || '',
+                    form_url: window.location.href
+                }, 'form_start: ' + key);
+            });
+        }
+
+        // Track form submissions to detect abandonment
+        $(document).on('submit', 'form', function () {
+            var key = getFormKey(this);
+            submittedForms[key] = true;
+        });
+
+        // Also mark CF7, WPForms, etc. as submitted
+        document.addEventListener('wpcf7mailsent', function () { submittedForms['_cf7'] = true; });
+        $(document).on('wpformsAjaxSubmitSuccess', function () { submittedForms['_wpforms'] = true; });
+
+        // Detect form abandonment on page unload
+        if (formAbandonEnabled) {
+            window.addEventListener('beforeunload', function () {
+                for (var key in startedForms) {
+                    if (!submittedForms[key] && !submittedForms['_cf7'] && !submittedForms['_wpforms']) {
+                        var eventData = {
+                            event: 'form_abandon',
+                            event_id: eid('fa'),
+                            form_id: key,
+                            form_url: window.location.href
+                        };
+                        // Use beacon if available (beforeunload context)
+                        if (window.meshulashBeacon) {
+                            window.meshulashBeacon('form_abandon', eventData, eventData.event_id);
+                        }
+                        // Also push to dataLayer for client pixels
+                        window.dataLayer = window.dataLayer || [];
+                        window.dataLayer.push(eventData);
+                    }
+                }
+            });
+        }
+
+        log('Form start/abandon tracking enabled');
+    })();
+
+    // ══════════════════════════════════════════════
+    //  VIDEO TRACKING (YouTube / Vimeo)
+    // ══════════════════════════════════════════════
+    if (M.event_video_tracking !== false) {
+        (function () {
+            var ytReady = false;
+            var ytPlayers = {};
+            var ytFired = {};
+
+            // YouTube: load iframe API if YouTube embeds exist
+            function initYouTube() {
+                var iframes = document.querySelectorAll('iframe[src*="youtube.com"], iframe[src*="youtube-nocookie.com"]');
+                if (!iframes.length) return;
+
+                // Ensure enablejsapi=1 is in each iframe src
+                iframes.forEach(function (iframe) {
+                    var src = iframe.src || '';
+                    if (src.indexOf('enablejsapi') === -1) {
+                        iframe.src = src + (src.indexOf('?') !== -1 ? '&' : '?') + 'enablejsapi=1&origin=' + encodeURIComponent(window.location.origin);
+                    }
+                    if (!iframe.id) iframe.id = 'msh_yt_' + Math.random().toString(36).substr(2, 6);
+                });
+
+                // Load YouTube iframe API
+                if (!window.YT) {
+                    var tag = document.createElement('script');
+                    tag.src = 'https://www.youtube.com/iframe_api';
+                    document.head.appendChild(tag);
+                }
+
+                var oldOnReady = window.onYouTubeIframeAPIReady;
+                window.onYouTubeIframeAPIReady = function () {
+                    if (oldOnReady) oldOnReady();
+                    ytReady = true;
+                    iframes.forEach(function (iframe) {
+                        try {
+                            ytPlayers[iframe.id] = new YT.Player(iframe.id, {
+                                events: {
+                                    onStateChange: function (e) { onYTStateChange(e, iframe.id); }
+                                }
+                            });
+                        } catch (err) { log('YT player init error:', err); }
+                    });
+                };
+
+                // If YT is already loaded
+                if (window.YT && window.YT.Player) {
+                    window.onYouTubeIframeAPIReady();
+                }
+            }
+
+            function onYTStateChange(e, playerId) {
+                var state = e.data;
+                var player = e.target;
+                var videoTitle = '';
+                try { videoTitle = player.getVideoData().title || ''; } catch (err) {}
+
+                if (state === YT.PlayerState.PLAYING && !ytFired[playerId + '_play']) {
+                    ytFired[playerId + '_play'] = true;
+                    pushDL({
+                        event: 'video_play',
+                        event_id: eid('vp'),
+                        video_provider: 'youtube',
+                        video_title: videoTitle,
+                        video_url: player.getVideoUrl ? player.getVideoUrl() : ''
+                    }, 'video_play: ' + videoTitle);
+
+                    // Track progress milestones
+                    trackYTProgress(player, playerId, videoTitle);
+                }
+
+                if (state === YT.PlayerState.ENDED && !ytFired[playerId + '_complete']) {
+                    ytFired[playerId + '_complete'] = true;
+                    pushDL({
+                        event: 'video_complete',
+                        event_id: eid('vc'),
+                        video_provider: 'youtube',
+                        video_title: videoTitle
+                    }, 'video_complete: ' + videoTitle);
+                }
+            }
+
+            function trackYTProgress(player, playerId, title) {
+                var milestones = [25, 50, 75];
+                var progressInterval = setInterval(function () {
+                    try {
+                        if (!player.getDuration || player.getPlayerState() !== YT.PlayerState.PLAYING) {
+                            if (player.getPlayerState && player.getPlayerState() === YT.PlayerState.ENDED) clearInterval(progressInterval);
+                            return;
+                        }
+                        var pct = Math.round((player.getCurrentTime() / player.getDuration()) * 100);
+                        milestones.forEach(function (m) {
+                            if (pct >= m && !ytFired[playerId + '_' + m]) {
+                                ytFired[playerId + '_' + m] = true;
+                                pushDL({
+                                    event: 'video_progress',
+                                    event_id: eid('vpg'),
+                                    video_provider: 'youtube',
+                                    video_title: title,
+                                    video_percent: m
+                                }, 'video_progress ' + m + '%: ' + title);
+                            }
+                        });
+                        if (ytFired[playerId + '_75']) clearInterval(progressInterval);
+                    } catch (err) { clearInterval(progressInterval); }
+                }, 1000);
+            }
+
+            // Vimeo: use postMessage API
+            function initVimeo() {
+                var iframes = document.querySelectorAll('iframe[src*="vimeo.com"]');
+                if (!iframes.length) return;
+
+                iframes.forEach(function (iframe) {
+                    if (!iframe.id) iframe.id = 'msh_vim_' + Math.random().toString(36).substr(2, 6);
+                    var vFired = {};
+
+                    // Listen for Vimeo postMessage events
+                    function postToVimeo(action, value) {
+                        var data = { method: action };
+                        if (value !== undefined) data.value = value;
+                        iframe.contentWindow.postMessage(JSON.stringify(data), '*');
+                    }
+
+                    // Register event listeners via postMessage
+                    iframe.addEventListener('load', function () {
+                        postToVimeo('addEventListener', 'play');
+                        postToVimeo('addEventListener', 'finish');
+                        postToVimeo('addEventListener', 'playProgress');
+                    });
+
+                    window.addEventListener('message', function (e) {
+                        try {
+                            var data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+                            if (!data || data.player_id === undefined) return;
+                        } catch (err) { return; }
+
+                        if (data.event === 'play' && !vFired.play) {
+                            vFired.play = true;
+                            pushDL({
+                                event: 'video_play',
+                                event_id: eid('vp'),
+                                video_provider: 'vimeo',
+                                video_title: '',
+                                video_url: iframe.src
+                            }, 'video_play (Vimeo)');
+                        }
+
+                        if (data.event === 'finish' && !vFired.complete) {
+                            vFired.complete = true;
+                            pushDL({
+                                event: 'video_complete',
+                                event_id: eid('vc'),
+                                video_provider: 'vimeo',
+                                video_title: ''
+                            }, 'video_complete (Vimeo)');
+                        }
+
+                        if (data.event === 'playProgress' && data.data) {
+                            var pct = Math.round((data.data.percent || 0) * 100);
+                            [25, 50, 75].forEach(function (m) {
+                                if (pct >= m && !vFired['p' + m]) {
+                                    vFired['p' + m] = true;
+                                    pushDL({
+                                        event: 'video_progress',
+                                        event_id: eid('vpg'),
+                                        video_provider: 'vimeo',
+                                        video_title: '',
+                                        video_percent: m
+                                    }, 'video_progress ' + m + '% (Vimeo)');
+                                }
+                            });
+                        }
+                    });
+                });
+            }
+
+            // Init after DOM ready
+            $(function () {
+                initYouTube();
+                initVimeo();
+            });
+
+            log('Video tracking enabled (YouTube/Vimeo)');
+        })();
+    }
+
+    // ══════════════════════════════════════════════
+    //  PRINT PAGE
+    // ══════════════════════════════════════════════
+    if (M.event_print !== false) {
+        var printFired = false;
+        window.addEventListener('beforeprint', function () {
+            if (printFired) return;
+            printFired = true;
+            pushDL({
+                event: 'print_page',
+                event_id: eid('pr'),
+                page_url: window.location.href,
+                page_title: document.title
+            }, 'print_page');
+        });
+    }
+
+    // ══════════════════════════════════════════════
+    //  COPY TEXT
+    // ══════════════════════════════════════════════
+    if (M.event_copy !== false) {
+        var copyThrottle = 0;
+        document.addEventListener('copy', function () {
+            var now = Date.now();
+            if (now - copyThrottle < 2000) return; // Throttle: max once per 2s
+            copyThrottle = now;
+
+            var selectedText = '';
+            try { selectedText = window.getSelection().toString().substring(0, 200); } catch (e) {}
+
+            pushDL({
+                event: 'copy_text',
+                event_id: eid('cp'),
+                copied_text: selectedText,
+                page_url: window.location.href
+            }, 'copy_text');
+        });
+    }
+
+    // ══════════════════════════════════════════════
+    //  SOCIAL SHARE
+    // ══════════════════════════════════════════════
+    if (M.event_share !== false) {
+        // Detect native Web Share API usage
+        if (navigator.share) {
+            var origShare = navigator.share.bind(navigator);
+            navigator.share = function (data) {
+                pushDL({
+                    event: 'share',
+                    event_id: eid('sh'),
+                    share_method: 'native',
+                    share_title: (data && data.title) || document.title,
+                    share_url: (data && data.url) || window.location.href
+                }, 'share (native)');
+                return origShare(data);
+            };
+        }
+
+        // Detect clicks on common share button patterns
+        $(document).on('click', '[class*="share"], [data-share], .social-share a, .addtoany_share_save, .heateor_sss_sharing_container a, .supsystic-social-sharing a', function () {
+            var $el = $(this);
+            var method = 'button';
+            var href = ($el.attr('href') || '').toLowerCase();
+
+            // Try to detect which platform
+            if (href.indexOf('facebook.com/share') !== -1) method = 'facebook';
+            else if (href.indexOf('twitter.com/intent') !== -1 || href.indexOf('x.com/intent') !== -1) method = 'twitter';
+            else if (href.indexOf('linkedin.com/share') !== -1) method = 'linkedin';
+            else if (href.indexOf('pinterest.com/pin') !== -1) method = 'pinterest';
+            else if (href.indexOf('wa.me') !== -1 || href.indexOf('whatsapp.com/send') !== -1) method = 'whatsapp';
+            else if (href.indexOf('t.me') !== -1 || href.indexOf('telegram.me') !== -1) method = 'telegram';
+
+            pushDL({
+                event: 'share',
+                event_id: eid('sh'),
+                share_method: method,
+                share_url: window.location.href,
+                page_title: document.title
+            }, 'share: ' + method);
+        });
+    }
+
+    // ══════════════════════════════════════════════
     //  SENDBEACON API FOR SERVER EVENTS
     // ══════════════════════════════════════════════
     if (M.use_send_beacon) {
@@ -1214,6 +1583,71 @@
                 log('Product data cache hit for ID:', productId);
                 // Data is already available for the dispatcher via the standard add_to_cart flow
             }
+        });
+    }
+
+    // ══════════════════════════════════════════════
+    //  CUSTOM EVENTS (user-defined via admin)
+    // ══════════════════════════════════════════════
+
+    if (M.custom_events && M.custom_events.length) {
+        M.custom_events.forEach(function (ce) {
+            if (!ce.selector || !ce.event_name) return;
+            var trigger = ce.trigger || 'click';
+            var fired = {};
+
+            if (trigger === 'visibility') {
+                // IntersectionObserver for element visibility
+                if (typeof IntersectionObserver !== 'undefined') {
+                    var observerCallback = function (entries) {
+                        entries.forEach(function (entry) {
+                            if (entry.isIntersecting && !fired[ce.event_name]) {
+                                fired[ce.event_name] = true;
+                                var eventData = {
+                                    event: ce.event_name,
+                                    event_id: eid('ce'),
+                                    custom_event: true,
+                                    element_selector: ce.selector
+                                };
+                                if (ce.event_category) eventData.event_category = ce.event_category;
+                                if (ce.event_label) eventData.event_label = ce.event_label;
+                                if (ce.event_value) eventData.event_value = parseFloat(ce.event_value) || 0;
+                                pushDL(eventData, 'custom: ' + ce.event_name);
+                                if (ce.server_side && window.meshulashBeacon) {
+                                    window.meshulashBeacon(ce.event_name, eventData, eventData.event_id);
+                                }
+                            }
+                        });
+                    };
+                    var observer = new IntersectionObserver(observerCallback, { threshold: 0.5 });
+                    document.querySelectorAll(ce.selector).forEach(function (el) { observer.observe(el); });
+                }
+            } else {
+                // Click, submit, change, focus, hover
+                var jqEvent = trigger === 'hover' ? 'mouseenter' : trigger;
+                var fireOnce = ce.once !== false; // default: fire once per page load
+                $(document).on(jqEvent, ce.selector, function () {
+                    if (fireOnce && fired[ce.event_name]) return;
+                    fired[ce.event_name] = true;
+                    var $el = $(this);
+                    var eventData = {
+                        event: ce.event_name,
+                        event_id: eid('ce'),
+                        custom_event: true,
+                        element_text: ($el.text() || '').trim().substring(0, 100),
+                        element_selector: ce.selector
+                    };
+                    if (ce.event_category) eventData.event_category = ce.event_category;
+                    if (ce.event_label) eventData.event_label = ce.event_label;
+                    if (ce.event_value) eventData.event_value = parseFloat(ce.event_value) || 0;
+                    pushDL(eventData, 'custom: ' + ce.event_name);
+                    if (ce.server_side && window.meshulashBeacon) {
+                        window.meshulashBeacon(ce.event_name, eventData, eventData.event_id);
+                    }
+                });
+            }
+
+            log('Custom event registered:', ce.event_name, '(' + trigger + ')', ce.selector);
         });
     }
 

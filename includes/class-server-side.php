@@ -30,6 +30,11 @@ class Meshulash_Server_Side {
         if ( Meshulash_Settings::get( 'tt_api_enabled' ) && Meshulash_Settings::get( 'tt_access_token' ) ) {
             $this->send_tiktok_event( $event_name, $custom_data, $event_id, $order );
         }
+
+        // Pinterest CAPI
+        if ( Meshulash_Settings::get( 'pinterest_capi_enabled' ) && Meshulash_Settings::get( 'pinterest_access_token' ) ) {
+            $this->send_pinterest_event( $event_name, $custom_data, $event_id, $order );
+        }
     }
 
     // ══════════════════════════════════════════════
@@ -46,8 +51,9 @@ class Meshulash_Server_Side {
 
         $fb_event_name = $event_name; // Already in FB format from caller
 
-        // Build user data
+        // Build user data (enriched with geo if enabled)
         $user_data = Meshulash_DataLayer::get_user_data_hashed( $order );
+        $user_data = apply_filters( 'meshulash_enrich_user_data', $user_data, $order );
 
         $event = [
             'event_name'       => $fb_event_name,
@@ -199,8 +205,9 @@ class Meshulash_Server_Side {
 
         $tt_event = $tt_map[ $event_name ] ?? $event_name;
 
-        // Build user data (TikTok format)
+        // Build user data (TikTok format, enriched with geo)
         $user_data = $this->get_tiktok_user_data( $order );
+        $user_data = apply_filters( 'meshulash_enrich_user_data', $user_data, $order );
 
         // Build properties
         $properties = [];
@@ -258,6 +265,98 @@ class Meshulash_Server_Side {
 
         if ( Meshulash_Settings::is_debug() ) {
             error_log( 'Meshulash TikTok [' . $tt_event . '] Event ID: ' . $event_id );
+        }
+    }
+
+    // ══════════════════════════════════════════════
+    //  PINTEREST CONVERSIONS API
+    // ══════════════════════════════════════════════
+    private function send_pinterest_event( $event_name, $custom_data, $event_id, $order = null ) {
+        $ad_account_id = Meshulash_Settings::get( 'pinterest_ad_account_id' );
+        $access_token  = Meshulash_Settings::get( 'pinterest_access_token' );
+
+        if ( ! $ad_account_id || ! $access_token ) return;
+        if ( $access_token === Meshulash_Settings::SECRET_MASK ) return;
+
+        // Map to Pinterest event names
+        $pin_map = [
+            'ViewContent'          => 'page_visit',
+            'AddToCart'            => 'add_to_cart',
+            'InitiateCheckout'     => 'checkout',
+            'Purchase'             => 'checkout',
+            'CompleteRegistration' => 'signup',
+            'Lead'                 => 'lead',
+            'Search'               => 'search',
+            'AddToWishlist'        => 'add_to_cart',
+        ];
+
+        $pin_event = $pin_map[ $event_name ] ?? null;
+        if ( ! $pin_event ) return;
+
+        // Build user data
+        $user_data = [];
+        $email = '';
+        $phone = '';
+
+        if ( $order instanceof WC_Order ) {
+            $email = $order->get_billing_email();
+            $phone = $order->get_billing_phone();
+        } elseif ( is_user_logged_in() ) {
+            $user  = wp_get_current_user();
+            $email = $user->user_email;
+            $phone = get_user_meta( $user->ID, 'billing_phone', true );
+        }
+
+        if ( $email ) $user_data['em'] = [ hash( 'sha256', strtolower( trim( $email ) ) ) ];
+        if ( $phone ) $user_data['ph'] = [ hash( 'sha256', preg_replace( '/[^0-9]/', '', $phone ) ) ];
+
+        $client_ip = Meshulash_DataLayer::get_client_ip();
+        if ( $client_ip ) $user_data['client_ip_address'] = $client_ip;
+        if ( isset( $_SERVER['HTTP_USER_AGENT'] ) ) {
+            $user_data['client_user_agent'] = sanitize_text_field( $_SERVER['HTTP_USER_AGENT'] );
+        }
+
+        // Pinterest click ID
+        if ( isset( $_COOKIE['_epik'] ) ) {
+            $user_data['click_id'] = sanitize_text_field( $_COOKIE['_epik'] );
+        }
+
+        // Build custom data
+        $pin_custom = [];
+        if ( isset( $custom_data['value'] ) )    $pin_custom['value']    = (string) $custom_data['value'];
+        if ( isset( $custom_data['currency'] ) ) $pin_custom['currency'] = $custom_data['currency'];
+        if ( isset( $custom_data['order_id'] ) ) $pin_custom['order_id'] = (string) $custom_data['order_id'];
+        if ( isset( $custom_data['content_ids'] ) ) {
+            $pin_custom['content_ids'] = array_map( 'strval', $custom_data['content_ids'] );
+        }
+        if ( isset( $custom_data['num_items'] ) ) $pin_custom['num_items'] = (int) $custom_data['num_items'];
+
+        $event = [
+            'event_name'       => $pin_event,
+            'action_source'    => 'web',
+            'event_time'       => time(),
+            'event_id'         => $event_id,
+            'event_source_url' => $this->get_current_url(),
+            'user_data'        => $user_data,
+            'custom_data'      => $pin_custom,
+        ];
+
+        $payload = [ 'data' => [ $event ] ];
+
+        $url = 'https://api.pinterest.com/v5/ad_accounts/' . $ad_account_id . '/events';
+
+        wp_remote_post( $url, [
+            'timeout'  => 5,
+            'blocking' => Meshulash_Settings::is_debug(),
+            'headers'  => [
+                'Content-Type'  => 'application/json',
+                'Authorization' => 'Bearer ' . $access_token,
+            ],
+            'body' => wp_json_encode( $payload ),
+        ]);
+
+        if ( Meshulash_Settings::is_debug() ) {
+            error_log( 'Meshulash Pinterest CAPI [' . $pin_event . '] Event ID: ' . $event_id );
         }
     }
 

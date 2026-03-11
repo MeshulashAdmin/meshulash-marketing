@@ -13,8 +13,6 @@ class Meshulash_DataLayer {
     }
 
     public function enqueue_frontend_script() {
-        if ( ! function_exists( 'WC' ) ) return;
-
         wp_enqueue_script(
             'meshulash-frontend',
             MESHULASH_PLUGIN_URL . 'assets/js/meshulash-frontend.js',
@@ -26,7 +24,8 @@ class Meshulash_DataLayer {
         wp_localize_script( 'meshulash-frontend', 'meshulash', [
             'ajax_url'          => admin_url( 'admin-ajax.php' ),
             'nonce'             => wp_create_nonce( 'meshulash_nonce' ),
-            'currency'          => function_exists( 'get_woocommerce_currency' ) ? get_woocommerce_currency() : 'USD',
+            'currency'          => self::get_currency(),
+            'has_woocommerce'   => class_exists( 'WooCommerce' ),
             'debug'             => Meshulash_Settings::is_debug(),
             'mode'              => Meshulash_Settings::get( 'tracking_mode' ),
             // Interaction events (Direct Mode)
@@ -59,13 +58,49 @@ class Meshulash_DataLayer {
             'form_tracking'          => (bool) Meshulash_Settings::get( 'form_tracking' ),
             'download_tracking'      => (bool) Meshulash_Settings::get( 'download_tracking' ),
             'download_extensions'    => Meshulash_Settings::get( 'download_extensions' ),
+            // Engagement events
+            'event_outbound_click'   => (bool) Meshulash_Settings::get( 'event_outbound_click' ),
+            'event_form_start'       => (bool) Meshulash_Settings::get( 'event_form_start' ),
+            'event_form_abandon'     => (bool) Meshulash_Settings::get( 'event_form_abandon' ),
+            'event_video_tracking'   => (bool) Meshulash_Settings::get( 'event_video_tracking' ),
+            'event_share'            => (bool) Meshulash_Settings::get( 'event_share' ),
+            'event_print'            => (bool) Meshulash_Settings::get( 'event_print' ),
+            'event_copy'             => (bool) Meshulash_Settings::get( 'event_copy' ),
             // sendBeacon
             'use_send_beacon'        => (bool) Meshulash_Settings::get( 'use_send_beacon' ),
             // GA4 measurement ID (needed for session_id cookie parsing in JS)
             'ga4_measurement_id'     => Meshulash_Settings::get( 'ga4_measurement_id' ),
             // Cart restore data (for abandonment links)
             'cart_restore_url'       => self::get_cart_restore_url(),
+            // Custom events
+            'custom_events'          => self::get_custom_events(),
         ]);
+
+        // Allow other modules (e.g. Geo) to enrich the localized data
+        $data = wp_scripts()->get_data( 'meshulash-frontend', 'data' );
+        // The filter is applied via inline script instead
+        $extra = apply_filters( 'meshulash_localize_data', [] );
+        if ( ! empty( $extra ) ) {
+            wp_add_inline_script( 'meshulash-frontend', 'Object.assign(window.meshulash, ' . wp_json_encode( $extra ) . ');', 'before' );
+        }
+    }
+
+    /**
+     * Get currency — WooCommerce if available, otherwise fallback setting.
+     */
+    public static function get_currency() {
+        if ( function_exists( 'get_woocommerce_currency' ) ) {
+            return get_woocommerce_currency();
+        }
+        return Meshulash_Settings::get( 'default_currency' ) ?: 'USD';
+    }
+
+    /**
+     * Get custom events configuration.
+     */
+    public static function get_custom_events() {
+        $events = get_option( 'meshulash_custom_events', [] );
+        return is_array( $events ) ? array_values( $events ) : [];
     }
 
     /**

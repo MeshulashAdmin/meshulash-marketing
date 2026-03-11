@@ -39,6 +39,21 @@ class Meshulash_Settings {
             'yahoo_pixel_id'            => '',
             'yahoo_dot_id'              => '',
 
+            // LinkedIn Insight Tag
+            'linkedin_partner_id'       => '',
+
+            // Snapchat Pixel
+            'snapchat_pixel_id'         => '',
+
+            // Twitter / X Pixel
+            'twitter_pixel_id'          => '',
+
+            // Taboola Pixel
+            'taboola_pixel_id'          => '',
+
+            // Outbrain Pixel
+            'outbrain_pixel_id'         => '',
+
             // Google Ads Conversion Labels
             'gads_label_purchase'       => '',
             'gads_label_begin_checkout' => '',
@@ -51,6 +66,59 @@ class Meshulash_Settings {
             'gads_label_luxury'         => '',
             'gads_label_vip'            => '',
             'gads_label_purchase_10plus'=> '',
+
+            // Google Ads Engagement Labels
+            'gads_label_outbound_click' => '',
+            'gads_label_form_start'     => '',
+            'gads_label_form_abandon'   => '',
+            'gads_label_video_play'     => '',
+            'gads_label_video_progress' => '',
+            'gads_label_video_complete' => '',
+            'gads_label_share'          => '',
+            'gads_label_print_page'     => '',
+            'gads_label_copy_text'      => '',
+            'gads_label_file_download'  => '',
+
+            // Google Ads Ecommerce Labels
+            'gads_label_view_item'      => '',
+            'gads_label_view_item_list' => '',
+            'gads_label_remove_from_cart'=> '',
+            'gads_label_view_cart'      => '',
+            'gads_label_add_shipping'   => '',
+            'gads_label_search'         => '',
+            'gads_label_login'          => '',
+            'gads_label_generate_lead'  => '',
+            'gads_label_form_submit'    => '',
+            'gads_label_add_to_wishlist'=> '',
+            'gads_label_coupon_applied' => '',
+            'gads_label_refund'         => '',
+
+            // Google Ads Enrichment Labels
+            'gads_label_variation_select'   => '',
+            'gads_label_gallery_click'      => '',
+            'gads_label_checkout_field'     => '',
+            'gads_label_cart_abandonment'   => '',
+            'gads_label_quick_view'         => '',
+            'gads_label_mini_cart'          => '',
+
+            // Google Ads Subscription Labels
+            'gads_label_sub_renewal'        => '',
+            'gads_label_sub_cancelled'      => '',
+            'gads_label_sub_reactivated'    => '',
+            'gads_label_sub_expired'        => '',
+            'gads_label_sub_paused'         => '',
+
+            // Google Ads Link Click Labels
+            'gads_label_phone_click'        => '',
+            'gads_label_email_click'        => '',
+            'gads_label_whatsapp_click'     => '',
+            'gads_label_social_click'       => '',
+            'gads_label_maps_click'         => '',
+            'gads_label_cta_click'          => '',
+
+            // Google Ads Interaction Labels
+            'gads_label_scroll_depth'       => '',
+            'gads_label_page_timer'         => '',
 
             // Purchase Tier Thresholds
             'threshold_mid_tier'        => 600,
@@ -75,6 +143,11 @@ class Meshulash_Settings {
             'tt_api_enabled'            => false,
             'tt_test_event_code'        => '',
 
+            // Server-Side: Pinterest CAPI
+            'pinterest_access_token'    => '',
+            'pinterest_capi_enabled'    => false,
+            'pinterest_ad_account_id'   => '',
+
             // UTM Tracking
             'utm_enabled'               => true,
             'utm_cookie_days'           => 90,
@@ -96,6 +169,12 @@ class Meshulash_Settings {
             'cart_abandon_timeout'      => 30,
             'profit_tracking'           => false,
             'product_cost_field'        => '_cost_price',
+
+            // Geo-Location Enrichment
+            'geo_enrichment'            => true,
+
+            // Default Currency (used when WooCommerce is not active)
+            'default_currency'          => 'ILS',
 
             // Bot Detection
             'bot_detection'             => true,
@@ -128,6 +207,18 @@ class Meshulash_Settings {
             // Use sendBeacon API for server events
             'use_send_beacon'           => true,
 
+            // Webhooks
+            'webhook_enabled'           => false,
+            'webhook_url'               => '',
+            'webhook_secret'            => '',
+            'webhook_events'            => 'all',
+
+            // Event Log
+            'event_log_enabled'         => false,
+
+            // Attribution Model
+            'attribution_model'         => 'last_click',
+
             // Mumble WhatsApp Integration
             'mumble_enabled'            => false,
             'mumble_api_key'            => '',
@@ -156,6 +247,11 @@ class Meshulash_Settings {
             'consent_pinterest'         => true,
             'consent_reddit'            => true,
             'consent_yahoo'             => true,
+            'consent_linkedin'          => true,
+            'consent_snapchat'          => true,
+            'consent_twitter'           => true,
+            'consent_taboola'           => true,
+            'consent_outbrain'          => true,
 
             // Event Toggles
             'event_view_item'           => true,
@@ -184,6 +280,13 @@ class Meshulash_Settings {
             'event_mini_cart'           => true,
             'event_form_submit'         => true,
             'event_file_download'       => true,
+            'event_outbound_click'      => true,
+            'event_form_start'          => true,
+            'event_form_abandon'        => true,
+            'event_video_tracking'      => true,
+            'event_share'               => true,
+            'event_print'               => true,
+            'event_copy'                => true,
         ];
     }
 
@@ -215,7 +318,9 @@ class Meshulash_Settings {
         'fb_access_token',
         'ga4_api_secret',
         'tt_access_token',
+        'pinterest_access_token',
         'mumble_api_key',
+        'webhook_secret',
     ];
 
     public static function is_secret_field( $key ) {
