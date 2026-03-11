@@ -127,7 +127,7 @@ class Meshulash_UTM {
     }
 
     /**
-     * Render UTM meta box content.
+     * Render UTM meta box content (combines cookie-based UTM + hidden fields data).
      */
     public function render_meta_box( $post_or_order ) {
         $order = ( $post_or_order instanceof WP_Post )
@@ -136,31 +136,103 @@ class Meshulash_UTM {
 
         if ( ! $order ) return;
 
-        $tracking = $order->get_meta( '_meshulash_utm' );
+        // Merge cookie-based UTM data with hidden_fields data
+        $tracking      = $order->get_meta( '_meshulash_utm' );
+        $hidden_fields = $order->get_meta( '_meshulash_hidden_fields' );
 
-        if ( ! $tracking || ! is_array( $tracking ) ) {
+        if ( ! is_array( $tracking ) )      $tracking = [];
+        if ( ! is_array( $hidden_fields ) ) $hidden_fields = [];
+
+        // Hidden fields override cookie-based (they're more complete)
+        $all_data = array_merge( $tracking, $hidden_fields );
+
+        // Remove "null" string values (JS sends "null" for empty fields)
+        $all_data = array_filter( $all_data, function( $v ) {
+            return $v !== '' && $v !== 'null';
+        });
+
+        if ( empty( $all_data ) ) {
             echo '<p style="color:#999;">No tracking data captured.</p>';
             return;
         }
 
-        // Filter out empty values
-        $tracking = array_filter( $tracking );
+        // Group fields for readability
+        $groups = [
+            'Campaign' => [
+                'utm_source', 'utm_medium', 'utm_campaign', 'utm_id', 'campaign_id',
+                'utm_content', 'adset_id', 'utm_ad', 'ad_id', 'utm_term', 'keyword_id',
+            ],
+            'Ad Platform' => [
+                'device', 'GeoLoc', 'IntLoc', 'placement', 'matchtype', 'network',
+            ],
+            'Click IDs' => [
+                'gclid', 'wbraid', 'gbraid', 'fbclid', 'obcid', 'msclkid', 'li_fat_id',
+                'tblci', 'ttcid', 'pmcid', 'yclid', 'vmcid', 'twclid',
+            ],
+            'Pixel & Analytics' => [
+                'ga_cid', 'ga_session_id', 'fbp', 'fbc', 'gcl_aw', 'gcl_dc', 'ttp',
+            ],
+            'Landing' => [
+                'first_touch_url', 'page_url', 'page_referrer',
+            ],
+            'Device & Browser' => [
+                'device_type', 'screen_resolution', 'viewport', 'language', 'timezone', 'user_agent',
+            ],
+        ];
 
-        if ( empty( $tracking ) ) {
-            echo '<p style="color:#999;">No tracking data captured.</p>';
-            return;
+        // Collect keys that don't belong to any group
+        $grouped_keys = [];
+        foreach ( $groups as $fields ) {
+            $grouped_keys = array_merge( $grouped_keys, $fields );
         }
 
-        echo '<table class="widefat striped" style="border:0;">';
-        echo '<tbody>';
-        foreach ( $tracking as $key => $value ) {
-            $label = ucwords( str_replace( '_', ' ', $key ) );
-            echo '<tr>';
-            echo '<td style="padding:4px 8px;font-weight:500;width:40%;">' . esc_html( $label ) . '</td>';
-            echo '<td style="padding:4px 8px;word-break:break-all;">' . esc_html( $value ) . '</td>';
-            echo '</tr>';
+        echo '<div style="max-height:500px;overflow-y:auto;">';
+
+        foreach ( $groups as $group_label => $fields ) {
+            $group_data = [];
+            foreach ( $fields as $key ) {
+                if ( isset( $all_data[ $key ] ) ) {
+                    $group_data[ $key ] = $all_data[ $key ];
+                }
+            }
+            if ( empty( $group_data ) ) continue;
+
+            echo '<p style="margin:10px 0 4px;font-weight:600;color:#1d2327;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">' . esc_html( $group_label ) . '</p>';
+            echo '<table class="widefat striped" style="border:0;margin-bottom:4px;">';
+            echo '<tbody>';
+            foreach ( $group_data as $key => $value ) {
+                $label = ucwords( str_replace( '_', ' ', $key ) );
+                echo '<tr>';
+                echo '<td style="padding:3px 8px;font-weight:500;width:40%;font-size:12px;">' . esc_html( $label ) . '</td>';
+                echo '<td style="padding:3px 8px;word-break:break-all;font-size:12px;">' . esc_html( $value ) . '</td>';
+                echo '</tr>';
+            }
+            echo '</tbody></table>';
         }
-        echo '</tbody></table>';
+
+        // Show any extra fields not in predefined groups
+        $extra = array_diff_key( $all_data, array_flip( $grouped_keys ) );
+        // Exclude noisy fields
+        unset( $extra['page_title'], $extra['timestamp'], $extra['customer_journey'] );
+        $extra = array_filter( $extra, function( $v ) {
+            return $v !== '' && $v !== 'null';
+        });
+
+        if ( ! empty( $extra ) ) {
+            echo '<p style="margin:10px 0 4px;font-weight:600;color:#1d2327;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Other</p>';
+            echo '<table class="widefat striped" style="border:0;">';
+            echo '<tbody>';
+            foreach ( $extra as $key => $value ) {
+                $label = ucwords( str_replace( '_', ' ', $key ) );
+                echo '<tr>';
+                echo '<td style="padding:3px 8px;font-weight:500;width:40%;font-size:12px;">' . esc_html( $label ) . '</td>';
+                echo '<td style="padding:3px 8px;word-break:break-all;font-size:12px;">' . esc_html( $value ) . '</td>';
+                echo '</tr>';
+            }
+            echo '</tbody></table>';
+        }
+
+        echo '</div>';
     }
 
     /**
