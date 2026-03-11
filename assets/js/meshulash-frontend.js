@@ -351,15 +351,26 @@
                 }
             });
 
-            // First touch URL — only set if not already stored
+            // First touch — only set if not already stored
             if (!getCookie('first_touch_url')) {
                 setCookie('first_touch_url', window.location.href, days);
+                // Save first-touch UTM snapshot
+                var ftSrc = url.searchParams.get('utm_source');
+                if (ftSrc) {
+                    setCookie('first_touch_utm_source', ftSrc, days);
+                    setCookie('first_touch_utm_medium', url.searchParams.get('utm_medium') || '', days);
+                    setCookie('first_touch_utm_campaign', url.searchParams.get('utm_campaign') || '', days);
+                }
             }
 
-            // If new UTM params arrived, update the landing page cookie
+            // Last touch — always update when UTMs arrive
             if (hasUtm) {
+                setCookie('last_touch_url', window.location.href, days);
+                setCookie('last_touch_utm_source', url.searchParams.get('utm_source') || '', days);
+                setCookie('last_touch_utm_medium', url.searchParams.get('utm_medium') || '', days);
+                setCookie('last_touch_utm_campaign', url.searchParams.get('utm_campaign') || '', days);
                 setCookie('utm_landing_page', window.location.pathname, days);
-                log('UTM cookies saved');
+                log('UTM cookies saved (first + last touch)');
             }
         })();
     }
@@ -426,8 +437,17 @@
             // TikTok
             data.ttp = getCookie('_ttp') || 'null';
 
-            // Landing page & first touch
+            // First touch
             data.first_touch_url = getCookie('first_touch_url') || 'null';
+            data.first_touch_utm_source = getCookie('first_touch_utm_source') || 'null';
+            data.first_touch_utm_medium = getCookie('first_touch_utm_medium') || 'null';
+            data.first_touch_utm_campaign = getCookie('first_touch_utm_campaign') || 'null';
+
+            // Last touch
+            data.last_touch_url = getCookie('last_touch_url') || 'null';
+            data.last_touch_utm_source = getCookie('last_touch_utm_source') || 'null';
+            data.last_touch_utm_medium = getCookie('last_touch_utm_medium') || 'null';
+            data.last_touch_utm_campaign = getCookie('last_touch_utm_campaign') || 'null';
 
             // Page context
             data.page_url = window.location.href;

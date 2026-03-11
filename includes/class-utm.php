@@ -8,7 +8,9 @@ class Meshulash_UTM {
         'utm_content', 'adset_id', 'utm_ad', 'ad_id', 'utm_term', 'keyword_id',
         'device', 'GeoLoc', 'IntLoc', 'placement', 'matchtype', 'network',
         'gclid', 'wbraid', 'gbraid', 'fbclid', 'obcid', 'msclkid', 'li_fat_id',
-        'tblci', 'ttcid', 'pmcid', 'yclid', 'vmcid', 'twclid', 'first_touch_url',
+        'tblci', 'ttcid', 'pmcid', 'yclid', 'vmcid', 'twclid',
+        'first_touch_url', 'first_touch_utm_source', 'first_touch_utm_medium', 'first_touch_utm_campaign',
+        'last_touch_url', 'last_touch_utm_source', 'last_touch_utm_medium', 'last_touch_utm_campaign',
     ];
 
     public function __construct() {
@@ -89,6 +91,24 @@ class Meshulash_UTM {
                     $order->update_meta_data( '_meshulash_hidden_fields', $hidden );
                 }
             }
+        }
+
+        // Coupon attribution: link coupons used to the UTM source
+        $coupons = $order->get_coupon_codes();
+        if ( ! empty( $coupons ) ) {
+            $utm_source   = isset( $_COOKIE['utm_source'] ) ? sanitize_text_field( $_COOKIE['utm_source'] ) : 'direct';
+            $utm_medium   = isset( $_COOKIE['utm_medium'] ) ? sanitize_text_field( $_COOKIE['utm_medium'] ) : 'none';
+            $utm_campaign = isset( $_COOKIE['utm_campaign'] ) ? sanitize_text_field( $_COOKIE['utm_campaign'] ) : '';
+            $coupon_attr  = [];
+            foreach ( $coupons as $code ) {
+                $coupon_attr[] = [
+                    'coupon'       => $code,
+                    'utm_source'   => $utm_source,
+                    'utm_medium'   => $utm_medium,
+                    'utm_campaign' => $utm_campaign,
+                ];
+            }
+            $order->update_meta_data( '_meshulash_coupon_attribution', $coupon_attr );
         }
 
         $order->save();
@@ -172,8 +192,14 @@ class Meshulash_UTM {
             'Pixel & Analytics' => [
                 'ga_cid', 'ga_session_id', 'fbp', 'fbc', 'gcl_aw', 'gcl_dc', 'ttp',
             ],
+            'First Touch' => [
+                'first_touch_url', 'first_touch_utm_source', 'first_touch_utm_medium', 'first_touch_utm_campaign',
+            ],
+            'Last Touch' => [
+                'last_touch_url', 'last_touch_utm_source', 'last_touch_utm_medium', 'last_touch_utm_campaign',
+            ],
             'Landing' => [
-                'first_touch_url', 'page_url', 'page_referrer',
+                'page_url', 'page_referrer',
             ],
             'Device & Browser' => [
                 'device_type', 'screen_resolution', 'viewport', 'language', 'timezone', 'user_agent',
@@ -227,6 +253,24 @@ class Meshulash_UTM {
                 echo '<tr>';
                 echo '<td style="padding:3px 8px;font-weight:500;width:40%;font-size:12px;">' . esc_html( $label ) . '</td>';
                 echo '<td style="padding:3px 8px;word-break:break-all;font-size:12px;">' . esc_html( $value ) . '</td>';
+                echo '</tr>';
+            }
+            echo '</tbody></table>';
+        }
+
+        // Coupon attribution
+        $coupon_attr = $order->get_meta( '_meshulash_coupon_attribution' );
+        if ( ! empty( $coupon_attr ) && is_array( $coupon_attr ) ) {
+            echo '<p style="margin:10px 0 4px;font-weight:600;color:#1d2327;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Coupon Attribution</p>';
+            echo '<table class="widefat striped" style="border:0;">';
+            echo '<thead><tr><th style="padding:3px 8px;font-size:11px;">Coupon</th><th style="padding:3px 8px;font-size:11px;">Source</th><th style="padding:3px 8px;font-size:11px;">Medium</th><th style="padding:3px 8px;font-size:11px;">Campaign</th></tr></thead>';
+            echo '<tbody>';
+            foreach ( $coupon_attr as $ca ) {
+                echo '<tr>';
+                echo '<td style="padding:3px 8px;font-size:12px;font-weight:500;">' . esc_html( $ca['coupon'] ) . '</td>';
+                echo '<td style="padding:3px 8px;font-size:12px;">' . esc_html( $ca['utm_source'] ) . '</td>';
+                echo '<td style="padding:3px 8px;font-size:12px;">' . esc_html( $ca['utm_medium'] ) . '</td>';
+                echo '<td style="padding:3px 8px;font-size:12px;">' . esc_html( $ca['utm_campaign'] ?: '—' ) . '</td>';
                 echo '</tr>';
             }
             echo '</tbody></table>';

@@ -77,6 +77,8 @@ class Meshulash_Admin {
             'mumble'      => 'Mumble',
             'scripts'     => 'Scripts',
             'general'     => 'General',
+            'diagnostics' => 'Diagnostics',
+            'dashboard'   => 'Dashboard',
         ];
         ?>
         <div class="wrap meshulash-wrap">
@@ -111,6 +113,8 @@ class Meshulash_Admin {
                         case 'mumble':      $this->tab_mumble( $s ); break;
                         case 'scripts':     $this->tab_scripts( $s ); break;
                         case 'general':     $this->tab_general( $s ); break;
+                        case 'diagnostics': $this->tab_diagnostics( $s ); break;
+                        case 'dashboard':   $this->tab_dashboard( $s ); break;
                     }
                     ?>
                 </div>
@@ -513,12 +517,29 @@ class Meshulash_Admin {
                 </td>
             </tr>
         </table>
+        <h3>Consent Plugin Integration</h3>
+        <table class="form-table">
+            <tr>
+                <th scope="row"><label for="meshulash_consent_integration">Consent Plugin</label></th>
+                <td>
+                    <select name="meshulash[consent_integration]" id="meshulash_consent_integration">
+                        <option value="auto" <?php selected( $s['consent_integration'], 'auto' ); ?>>Auto-detect</option>
+                        <option value="cookieyes" <?php selected( $s['consent_integration'], 'cookieyes' ); ?>>CookieYes</option>
+                        <option value="complianz" <?php selected( $s['consent_integration'], 'complianz' ); ?>>Complianz</option>
+                        <option value="cookiebot" <?php selected( $s['consent_integration'], 'cookiebot' ); ?>>CookieBot</option>
+                        <option value="real_cookie_banner" <?php selected( $s['consent_integration'], 'real_cookie_banner' ); ?>>Real Cookie Banner</option>
+                        <option value="none" <?php selected( $s['consent_integration'], 'none' ); ?>>None (manual only)</option>
+                    </select>
+                    <p class="description">Auto-detect listens for all supported plugins. Choose a specific one to reduce overhead.</p>
+                </td>
+            </tr>
+        </table>
         <div class="meshulash-info-box">
-            <strong>Integration with your cookie banner:</strong><br>
-            Call from your consent banner JS when user accepts:<br>
+            <strong>Supported consent plugins:</strong> CookieYes, Complianz, CookieBot, Real Cookie Banner.<br>
+            When a user accepts/rejects cookies, Meshulash automatically updates Google Consent Mode, Facebook, and TikTok consent.<br><br>
+            <strong>Manual integration:</strong> Call from your consent banner JS:<br>
             <code>meshulashGrantConsent({ all: true });</code> — grants everything<br>
-            <code>meshulashGrantConsent({ analytics: true, ads: false });</code> — analytics only<br>
-            This updates Google, Facebook, and TikTok consent in one call.
+            <code>meshulashGrantConsent({ analytics: true, ads: false });</code> — analytics only
         </div>
 
         <hr>
@@ -1123,6 +1144,430 @@ class Meshulash_Admin {
             'has_update' => $has_update,
             'update_url' => $has_update ? admin_url( 'update-core.php' ) : '',
         ]);
+    }
+
+    // ──────────────────────────────────────────────
+    //  Tab: Diagnostics
+    // ──────────────────────────────────────────────
+    private function tab_diagnostics( $s ) {
+        $checks = [];
+
+        // Tracking mode
+        $mode = $s['tracking_mode'];
+        if ( $mode === 'gtm' ) {
+            $checks[] = [
+                'label' => 'Tracking Mode',
+                'value' => 'GTM',
+                'status' => ! empty( $s['gtm_id'] ) ? 'ok' : 'error',
+                'note'   => ! empty( $s['gtm_id'] ) ? $s['gtm_id'] : 'GTM mode selected but no GTM ID set',
+            ];
+        } else {
+            $checks[] = [ 'label' => 'Tracking Mode', 'value' => 'Direct', 'status' => 'ok', 'note' => '' ];
+        }
+
+        // GA4
+        $checks[] = [
+            'label' => 'GA4 Measurement ID',
+            'value' => $s['ga4_measurement_id'] ?: '—',
+            'status' => ! empty( $s['ga4_measurement_id'] ) ? ( preg_match( '/^G-[A-Z0-9]+$/', $s['ga4_measurement_id'] ) ? 'ok' : 'warn' ) : 'off',
+            'note'   => ! empty( $s['ga4_measurement_id'] ) && ! preg_match( '/^G-[A-Z0-9]+$/', $s['ga4_measurement_id'] ) ? 'Invalid format (expected G-XXXXXXX)' : '',
+        ];
+
+        // Facebook Pixel
+        $checks[] = [
+            'label' => 'Facebook Pixel',
+            'value' => $s['fb_pixel_id'] ?: '—',
+            'status' => ! empty( $s['fb_pixel_id'] ) ? 'ok' : 'off',
+            'note'   => '',
+        ];
+
+        // Facebook CAPI
+        $fb_capi_ok = $s['fb_capi_enabled'] && ! empty( $s['fb_pixel_id'] ) && ! empty( $s['fb_access_token'] );
+        $checks[] = [
+            'label' => 'Facebook CAPI',
+            'value' => $s['fb_capi_enabled'] ? 'Enabled' : 'Disabled',
+            'status' => ! $s['fb_capi_enabled'] ? 'off' : ( $fb_capi_ok ? 'ok' : 'error' ),
+            'note'   => $s['fb_capi_enabled'] && empty( $s['fb_access_token'] ) ? 'Access token missing' : '',
+        ];
+
+        // Google Ads
+        $checks[] = [
+            'label' => 'Google Ads',
+            'value' => $s['gads_conversion_id'] ?: '—',
+            'status' => ! empty( $s['gads_conversion_id'] ) ? 'ok' : 'off',
+            'note'   => ! empty( $s['gads_conversion_id'] ) && empty( $s['gads_label_purchase'] ) ? 'No purchase conversion label set' : '',
+        ];
+
+        // Enhanced Conversions
+        $checks[] = [
+            'label' => 'Enhanced Conversions',
+            'value' => $s['enhanced_conversions'] ? 'Enabled' : 'Disabled',
+            'status' => $s['enhanced_conversions'] ? 'ok' : 'off',
+            'note'   => '',
+        ];
+
+        // TikTok Pixel
+        $checks[] = [
+            'label' => 'TikTok Pixel',
+            'value' => $s['tt_pixel_id'] ?: '—',
+            'status' => ! empty( $s['tt_pixel_id'] ) ? 'ok' : 'off',
+            'note'   => '',
+        ];
+
+        // TikTok Events API
+        $tt_api_ok = $s['tt_api_enabled'] && ! empty( $s['tt_pixel_id'] ) && ! empty( $s['tt_access_token'] );
+        $checks[] = [
+            'label' => 'TikTok Events API',
+            'value' => $s['tt_api_enabled'] ? 'Enabled' : 'Disabled',
+            'status' => ! $s['tt_api_enabled'] ? 'off' : ( $tt_api_ok ? 'ok' : 'error' ),
+            'note'   => $s['tt_api_enabled'] && empty( $s['tt_access_token'] ) ? 'Access token missing' : '',
+        ];
+
+        // GA4 Measurement Protocol
+        $ga4_mp_ok = $s['ga4_mp_enabled'] && ! empty( $s['ga4_measurement_id'] ) && ! empty( $s['ga4_api_secret'] );
+        $checks[] = [
+            'label' => 'GA4 Measurement Protocol',
+            'value' => $s['ga4_mp_enabled'] ? 'Enabled' : 'Disabled',
+            'status' => ! $s['ga4_mp_enabled'] ? 'off' : ( $ga4_mp_ok ? 'ok' : 'error' ),
+            'note'   => $s['ga4_mp_enabled'] && empty( $s['ga4_api_secret'] ) ? 'API secret missing' : '',
+        ];
+
+        // Bing
+        $checks[] = [
+            'label' => 'Bing UET',
+            'value' => $s['bing_uet_id'] ?: '—',
+            'status' => ! empty( $s['bing_uet_id'] ) ? 'ok' : 'off',
+            'note'   => '',
+        ];
+
+        // Pinterest
+        $checks[] = [
+            'label' => 'Pinterest Tag',
+            'value' => $s['pinterest_tag_id'] ?: '—',
+            'status' => ! empty( $s['pinterest_tag_id'] ) ? 'ok' : 'off',
+            'note'   => '',
+        ];
+
+        // Consent Mode
+        $checks[] = [
+            'label' => 'Consent Mode v2',
+            'value' => $s['consent_mode'] ? 'Enabled (' . $s['consent_integration'] . ')' : 'Disabled',
+            'status' => $s['consent_mode'] ? 'ok' : 'off',
+            'note'   => '',
+        ];
+
+        // UTM Tracking
+        $checks[] = [
+            'label' => 'UTM Tracking',
+            'value' => $s['utm_enabled'] ? 'Enabled' : 'Disabled',
+            'status' => $s['utm_enabled'] ? 'ok' : 'off',
+            'note'   => '',
+        ];
+
+        // Customer Journey
+        $checks[] = [
+            'label' => 'Customer Journey',
+            'value' => $s['journey_enabled'] ? 'Enabled' : 'Disabled',
+            'status' => $s['journey_enabled'] ? 'ok' : 'off',
+            'note'   => '',
+        ];
+
+        // WooCommerce
+        $woo_active = class_exists( 'WooCommerce' );
+        $checks[] = [
+            'label' => 'WooCommerce',
+            'value' => $woo_active ? 'Active (v' . WC()->version . ')' : 'Not found',
+            'status' => $woo_active ? 'ok' : 'warn',
+            'note'   => ! $woo_active ? 'Ecommerce tracking requires WooCommerce' : '',
+        ];
+
+        // Mumble
+        if ( $s['mumble_enabled'] ) {
+            $checks[] = [
+                'label' => 'Mumble WhatsApp',
+                'value' => 'Enabled',
+                'status' => ! empty( $s['mumble_api_key'] ) ? 'ok' : 'error',
+                'note'   => empty( $s['mumble_api_key'] ) ? 'API key missing' : '',
+            ];
+        }
+
+        $icons = [ 'ok' => '&#9989;', 'warn' => '&#9888;&#65039;', 'error' => '&#10060;', 'off' => '&#9898;' ];
+        ?>
+        <h2>Diagnostics</h2>
+        <p class="description">Health check for all Meshulash integrations. Green = working, Red = error, Gray = disabled.</p>
+
+        <table class="widefat striped" style="max-width:800px;">
+            <thead>
+                <tr>
+                    <th style="width:30px;"></th>
+                    <th>Integration</th>
+                    <th>Status</th>
+                    <th>Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ( $checks as $check ) : ?>
+                <tr>
+                    <td style="text-align:center;"><?php echo $icons[ $check['status'] ]; ?></td>
+                    <td><strong><?php echo esc_html( $check['label'] ); ?></strong></td>
+                    <td><?php echo esc_html( $check['value'] ); ?></td>
+                    <td style="color:<?php echo $check['status'] === 'error' ? '#d63638' : ( $check['status'] === 'warn' ? '#dba617' : '#666' ); ?>;">
+                        <?php echo esc_html( $check['note'] ); ?>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+
+        <hr>
+
+        <h2>Active Events</h2>
+        <p class="description">Events currently enabled in the Events tab.</p>
+        <?php
+        $defaults = Meshulash_Settings::defaults();
+        $active = [];
+        $inactive = [];
+        foreach ( $defaults as $key => $val ) {
+            if ( strpos( $key, 'event_' ) === 0 && is_bool( $val ) ) {
+                $label = ucwords( str_replace( '_', ' ', str_replace( 'event_', '', $key ) ) );
+                if ( $s[ $key ] ) {
+                    $active[] = $label;
+                } else {
+                    $inactive[] = $label;
+                }
+            }
+        }
+        ?>
+        <p>
+            <strong style="color:#00a32a;"><?php echo count( $active ); ?> active:</strong>
+            <?php echo esc_html( implode( ', ', $active ) ); ?>
+        </p>
+        <?php if ( ! empty( $inactive ) ) : ?>
+        <p>
+            <strong style="color:#999;"><?php echo count( $inactive ); ?> disabled:</strong>
+            <?php echo esc_html( implode( ', ', $inactive ) ); ?>
+        </p>
+        <?php endif; ?>
+
+        <hr>
+
+        <h2>Environment</h2>
+        <table class="widefat striped" style="max-width:800px;">
+            <tbody>
+                <tr><td style="width:200px;"><strong>Plugin Version</strong></td><td><?php echo esc_html( MESHULASH_VERSION ); ?></td></tr>
+                <tr><td><strong>WordPress</strong></td><td><?php echo esc_html( get_bloginfo( 'version' ) ); ?></td></tr>
+                <tr><td><strong>PHP</strong></td><td><?php echo esc_html( PHP_VERSION ); ?></td></tr>
+                <tr><td><strong>Site URL</strong></td><td><?php echo esc_html( get_site_url() ); ?></td></tr>
+                <tr><td><strong>SSL</strong></td><td><?php echo is_ssl() ? '&#9989; Yes' : '&#9888;&#65039; No (recommended for tracking)'; ?></td></tr>
+            </tbody>
+        </table>
+        <?php
+    }
+
+    // ──────────────────────────────────────────────
+    //  Tab: Dashboard (Revenue by Source)
+    // ──────────────────────────────────────────────
+    private function tab_dashboard( $s ) {
+        $days = isset( $_GET['days'] ) ? intval( $_GET['days'] ) : 30;
+        if ( ! in_array( $days, [ 7, 30, 90, 365 ], true ) ) $days = 30;
+
+        if ( ! class_exists( 'WooCommerce' ) ) {
+            echo '<p>WooCommerce is required for the dashboard.</p>';
+            return;
+        }
+
+        // Query orders with UTM data
+        $date_after = gmdate( 'Y-m-d', strtotime( "-{$days} days" ) );
+        $orders = wc_get_orders([
+            'status'     => [ 'wc-completed', 'wc-processing' ],
+            'limit'      => -1,
+            'date_after'  => $date_after,
+            'meta_key'   => '_meshulash_utm',
+            'meta_compare' => 'EXISTS',
+        ]);
+
+        $by_source   = [];
+        $by_medium   = [];
+        $by_campaign = [];
+        $by_coupon   = [];
+        $total_rev   = 0;
+        $total_orders = 0;
+
+        foreach ( $orders as $order ) {
+            $utm = $order->get_meta( '_meshulash_utm' );
+            $hidden = $order->get_meta( '_meshulash_hidden_fields' );
+            $all = array_merge(
+                is_array( $utm ) ? $utm : [],
+                is_array( $hidden ) ? $hidden : []
+            );
+
+            $source   = ! empty( $all['utm_source'] ) && $all['utm_source'] !== 'null' ? $all['utm_source'] : 'direct';
+            $medium   = ! empty( $all['utm_medium'] ) && $all['utm_medium'] !== 'null' ? $all['utm_medium'] : 'none';
+            $campaign = ! empty( $all['utm_campaign'] ) && $all['utm_campaign'] !== 'null' ? $all['utm_campaign'] : '(none)';
+            $revenue  = (float) $order->get_total();
+
+            $total_rev += $revenue;
+            $total_orders++;
+
+            // By source
+            if ( ! isset( $by_source[ $source ] ) ) $by_source[ $source ] = [ 'orders' => 0, 'revenue' => 0 ];
+            $by_source[ $source ]['orders']++;
+            $by_source[ $source ]['revenue'] += $revenue;
+
+            // By medium
+            if ( ! isset( $by_medium[ $medium ] ) ) $by_medium[ $medium ] = [ 'orders' => 0, 'revenue' => 0 ];
+            $by_medium[ $medium ]['orders']++;
+            $by_medium[ $medium ]['revenue'] += $revenue;
+
+            // By campaign
+            if ( $campaign !== '(none)' ) {
+                if ( ! isset( $by_campaign[ $campaign ] ) ) $by_campaign[ $campaign ] = [ 'orders' => 0, 'revenue' => 0 ];
+                $by_campaign[ $campaign ]['orders']++;
+                $by_campaign[ $campaign ]['revenue'] += $revenue;
+            }
+
+            // Coupon attribution
+            $coupon_attr = $order->get_meta( '_meshulash_coupon_attribution' );
+            if ( is_array( $coupon_attr ) ) {
+                foreach ( $coupon_attr as $ca ) {
+                    $code = $ca['coupon'];
+                    if ( ! isset( $by_coupon[ $code ] ) ) $by_coupon[ $code ] = [ 'orders' => 0, 'revenue' => 0, 'source' => $ca['utm_source'] ];
+                    $by_coupon[ $code ]['orders']++;
+                    $by_coupon[ $code ]['revenue'] += $revenue;
+                }
+            }
+        }
+
+        // Sort by revenue desc
+        uasort( $by_source, function( $a, $b ) { return $b['revenue'] <=> $a['revenue']; } );
+        uasort( $by_medium, function( $a, $b ) { return $b['revenue'] <=> $a['revenue']; } );
+        uasort( $by_campaign, function( $a, $b ) { return $b['revenue'] <=> $a['revenue']; } );
+        uasort( $by_coupon, function( $a, $b ) { return $b['revenue'] <=> $a['revenue']; } );
+
+        $currency = get_woocommerce_currency_symbol();
+        $base_url = admin_url( 'admin.php?page=meshulash-marketing&tab=dashboard' );
+        ?>
+        <h2>Revenue Dashboard</h2>
+        <p class="description">Revenue attribution based on UTM data stored on orders.</p>
+
+        <div style="margin:10px 0 20px;">
+            <?php foreach ( [ 7, 30, 90, 365 ] as $d ) : ?>
+                <a href="<?php echo esc_url( $base_url . '&days=' . $d ); ?>"
+                   class="button <?php echo $days === $d ? 'button-primary' : ''; ?>">
+                    <?php echo $d === 365 ? '1 Year' : $d . ' Days'; ?>
+                </a>
+            <?php endforeach; ?>
+        </div>
+
+        <!-- Summary Cards -->
+        <div style="display:flex;gap:16px;margin-bottom:24px;">
+            <div style="flex:1;padding:16px;background:#f0f6fc;border-left:4px solid #2271b1;border-radius:4px;">
+                <div style="font-size:24px;font-weight:700;"><?php echo esc_html( $currency . number_format( $total_rev, 0 ) ); ?></div>
+                <div style="color:#666;">Total Revenue</div>
+            </div>
+            <div style="flex:1;padding:16px;background:#e8f5e9;border-left:4px solid #00a32a;border-radius:4px;">
+                <div style="font-size:24px;font-weight:700;"><?php echo $total_orders; ?></div>
+                <div style="color:#666;">Orders</div>
+            </div>
+            <div style="flex:1;padding:16px;background:#fff8e1;border-left:4px solid #dba617;border-radius:4px;">
+                <div style="font-size:24px;font-weight:700;"><?php echo $total_orders ? esc_html( $currency . number_format( $total_rev / $total_orders, 0 ) ) : '—'; ?></div>
+                <div style="color:#666;">AOV</div>
+            </div>
+            <div style="flex:1;padding:16px;background:#fce4ec;border-left:4px solid #d63638;border-radius:4px;">
+                <div style="font-size:24px;font-weight:700;"><?php echo count( $by_source ); ?></div>
+                <div style="color:#666;">Sources</div>
+            </div>
+        </div>
+
+        <!-- By Source -->
+        <h3>By Source</h3>
+        <?php $this->render_dashboard_table( $by_source, $currency, $total_rev ); ?>
+
+        <!-- By Medium -->
+        <h3>By Medium</h3>
+        <?php $this->render_dashboard_table( $by_medium, $currency, $total_rev ); ?>
+
+        <?php if ( ! empty( $by_campaign ) ) : ?>
+        <!-- By Campaign -->
+        <h3>By Campaign</h3>
+        <?php $this->render_dashboard_table( $by_campaign, $currency, $total_rev ); ?>
+        <?php endif; ?>
+
+        <?php if ( ! empty( $by_coupon ) ) : ?>
+        <!-- Coupon Attribution -->
+        <h3>Coupon Attribution</h3>
+        <table class="widefat striped" style="max-width:800px;">
+            <thead>
+                <tr>
+                    <th>Coupon</th>
+                    <th>Source</th>
+                    <th style="text-align:right;">Orders</th>
+                    <th style="text-align:right;">Revenue</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ( $by_coupon as $code => $data ) : ?>
+                <tr>
+                    <td><strong><?php echo esc_html( $code ); ?></strong></td>
+                    <td><?php echo esc_html( $data['source'] ); ?></td>
+                    <td style="text-align:right;"><?php echo $data['orders']; ?></td>
+                    <td style="text-align:right;"><?php echo esc_html( $currency . number_format( $data['revenue'], 0 ) ); ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php endif; ?>
+
+        <?php if ( $total_orders === 0 ) : ?>
+        <div class="meshulash-info-box">
+            No orders with UTM data found in the last <?php echo $days; ?> days. UTM data is captured on checkout
+            when customers arrive via UTM-tagged links. Try a longer date range or check that UTM tracking is enabled.
+        </div>
+        <?php endif; ?>
+        <?php
+    }
+
+    /**
+     * Helper: render a revenue attribution table.
+     */
+    private function render_dashboard_table( $data, $currency, $total_rev ) {
+        if ( empty( $data ) ) {
+            echo '<p style="color:#999;">No data.</p>';
+            return;
+        }
+        ?>
+        <table class="widefat striped" style="max-width:800px;margin-bottom:24px;">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th style="text-align:right;">Orders</th>
+                    <th style="text-align:right;">Revenue</th>
+                    <th style="text-align:right;">AOV</th>
+                    <th style="text-align:right;">Share</th>
+                    <th style="width:200px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ( $data as $name => $row ) :
+                    $pct = $total_rev > 0 ? ( $row['revenue'] / $total_rev ) * 100 : 0;
+                    $aov = $row['orders'] > 0 ? $row['revenue'] / $row['orders'] : 0;
+                ?>
+                <tr>
+                    <td><strong><?php echo esc_html( $name ); ?></strong></td>
+                    <td style="text-align:right;"><?php echo $row['orders']; ?></td>
+                    <td style="text-align:right;"><?php echo esc_html( $currency . number_format( $row['revenue'], 0 ) ); ?></td>
+                    <td style="text-align:right;"><?php echo esc_html( $currency . number_format( $aov, 0 ) ); ?></td>
+                    <td style="text-align:right;"><?php echo number_format( $pct, 1 ); ?>%</td>
+                    <td>
+                        <div style="background:#e0e0e0;border-radius:3px;height:14px;overflow:hidden;">
+                            <div style="background:#2271b1;height:100%;width:<?php echo number_format( $pct, 1 ); ?>%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php
     }
 
     // ──────────────────────────────────────────────

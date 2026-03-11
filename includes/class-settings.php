@@ -90,6 +90,7 @@ class Meshulash_Settings {
             'consent_mode'              => false,  // Off by default — only needed for EU sites
             'consent_default_analytics' => 'granted',
             'consent_default_ads'       => 'granted',
+            'consent_integration'       => 'auto', // auto, cookieyes, complianz, cookiebot, real_cookie_banner, none
             'session_enrichment'        => true,
             'cart_abandonment'          => true,
             'cart_abandon_timeout'      => 30,

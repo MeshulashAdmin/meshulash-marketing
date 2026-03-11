@@ -71,6 +71,70 @@ else ttq.revokeConsent();
 }
 };
 </script>
+<?php $this->inject_consent_auto_detection(); ?>
+        <?php
+    }
+
+    /**
+     * Auto-detect consent plugins and bridge their decisions to meshulashGrantConsent().
+     */
+    private function inject_consent_auto_detection() {
+        $integration = Meshulash_Settings::get( 'consent_integration', 'auto' );
+        if ( $integration === 'none' ) return;
+        ?>
+<script>
+(function(){
+var grant=window.meshulashGrantConsent;
+if(!grant)return;
+var mode='<?php echo esc_js( $integration ); ?>';
+
+/* ── CookieYes ────────────────────────────── */
+function tryCookieYes(){
+if(mode!=='auto'&&mode!=='cookieyes')return;
+document.addEventListener('cookieyes_consent_update',function(e){
+var d=e.detail||{};
+grant({analytics:d.analytics==='yes',ads:d.advertisement==='yes'});
+});
+}
+
+/* ── Complianz ────────────────────────────── */
+function tryComplianz(){
+if(mode!=='auto'&&mode!=='complianz')return;
+document.addEventListener('cmplz_fire_categories',function(e){
+var cats=window.cmplz_categories||e.detail||{};
+grant({analytics:!!cats.statistics,ads:!!cats.marketing});
+});
+/* Complianz also fires on revoke */
+document.addEventListener('cmplz_revoke',function(){
+grant({analytics:false,ads:false});
+});
+}
+
+/* ── CookieBot ────────────────────────────── */
+function tryCookieBot(){
+if(mode!=='auto'&&mode!=='cookiebot')return;
+window.addEventListener('CookiebotOnAccept',function(){
+var c=window.Cookiebot||{consent:{}};
+grant({analytics:!!c.consent.statistics,ads:!!c.consent.marketing});
+});
+window.addEventListener('CookiebotOnDecline',function(){
+grant({analytics:false,ads:false});
+});
+}
+
+/* ── Real Cookie Banner ───────────────────── */
+function tryRealCookieBanner(){
+if(mode!=='auto'&&mode!=='real_cookie_banner')return;
+document.addEventListener('RCB/OptIn/All',function(){grant({all:true});});
+document.addEventListener('RCB/OptOut/All',function(){grant({analytics:false,ads:false});});
+}
+
+tryCookieYes();
+tryComplianz();
+tryCookieBot();
+tryRealCookieBanner();
+})();
+</script>
         <?php
     }
 
