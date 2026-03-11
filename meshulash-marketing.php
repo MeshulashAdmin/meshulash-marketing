@@ -3,7 +3,7 @@
  * Plugin Name: Meshulash Marketing — Tracking & Conversions
  * Plugin URI:  https://meshulashdigital.com
  * Description: Complete marketing tracking suite for ecommerce & lead generation: GTM dataLayer, GA4, Facebook, Google Ads, TikTok, Bing, Pinterest, LinkedIn, Snapchat, Twitter/X, Taboola, Outbrain — client-side and server-side with webhooks. Works with or without WooCommerce. Built by Meshulash Digital.
- * Version:     1.5.1
+ * Version:     1.5.2
  * Author:      Meshulash Digital
  * Author URI:  https://meshulashdigital.com
  * License:     GPL-2.0-or-later
@@ -29,7 +29,7 @@ if ( defined( 'MESHULASH_DISABLE' ) && MESHULASH_DISABLE ) {
     return;
 }
 
-define( 'MESHULASH_VERSION', '1.5.1' );
+define( 'MESHULASH_VERSION', '1.5.2' );
 define( 'MESHULASH_PLUGIN_FILE', __FILE__ );
 define( 'MESHULASH_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'MESHULASH_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
